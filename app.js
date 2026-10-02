@@ -206,7 +206,7 @@
     try {
       const result = authMode === 'login'
         ? await authRequest('token?grant_type=password', { email, password })
-        : await authRequest('signup', { email, password, options: { emailRedirectTo: location.origin } });
+        : await authRequest('signup', { email, password, options: { emailRedirectTo: location.href.split('#')[0] } });
       if (!result.access_token) {
         $('#account-message').textContent = '확인 메일을 보냈어요. 이메일 인증을 마친 뒤 로그인해 주세요.';
         return;
