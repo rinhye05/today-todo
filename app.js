@@ -1,3 +1,21 @@
+function restoreAuthCallback() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const accessToken = params.get('access_token');
+  const refreshToken = params.get('refresh_token');
+  if (!accessToken || !refreshToken) return;
+  const expiresIn = Number(params.get('expires_in') || 3600);
+  const session = {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: expiresIn,
+    expires_at: Number(params.get('expires_at') || Math.floor(Date.now() / 1000) + expiresIn),
+  };
+  localStorage.setItem('today-todos-sync-session-v1', JSON.stringify(session));
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
+}
+
+
+restoreAuthCallback();
 (() => {
   const STORAGE_KEY = 'today-todos-v1';
   const SESSION_KEY = 'today-todos-sync-session-v1';
@@ -65,7 +83,7 @@
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     updateAccountUI();
   }
-  function clearSession() {
+  function restoreAuthCallback() {  const params = new URLSearchParams(location.hash.slice(1));  const accessToken = params.get('access_token');  const refreshToken = params.get('refresh_token');  if (!accessToken || !refreshToken) return;  const expiresIn = Number(params.get('expires_in') || 3600);  const expiresAt = Number(params.get('expires_at') || Math.floor(Date.now() / 1000) + expiresIn);  saveSession({ access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn, expires_at: expiresAt });  history.replaceState(null, '', `${location.pathname}${location.search}`);}function clearSession() {
     session = null;
     localStorage.removeItem(SESSION_KEY);
     clearInterval(pollTimer);
@@ -394,5 +412,23 @@
   });
   render();
   updateAccountUI();
-  restoreSession();
+  restoreAuthCallback();  restoreSession();
+})();
+
+
+(() => {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const accessToken = params.get('access_token');
+  const refreshToken = params.get('refresh_token');
+  if (!accessToken || !refreshToken) return;
+  const expiresIn = Number(params.get('expires_in') || 3600);
+  const session = {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: expiresIn,
+    expires_at: Number(params.get('expires_at') || Math.floor(Date.now() / 1000) + expiresIn),
+  };
+  localStorage.setItem('today-todos-sync-session-v1', JSON.stringify(session));
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
+  location.reload();
 })();
