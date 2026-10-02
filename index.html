@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101010" />
+    <title>오늘, 할 일</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#" aria-label="오늘, 할 일 홈"><span class="brand-mark">✓</span><span>오늘, 할 일<span class="brand-caption">MY PRIVATE SPACE</span></span></a>
+        <div class="side-label">WORKSPACE</div>
+        <nav class="side-nav" aria-label="할 일 보기">
+          <button class="nav-item active" data-view="day"><span class="nav-icon">◷</span>하루 보기<span class="nav-count" id="today-count">0</span></button>
+          <button class="nav-item" data-view="all"><span class="nav-icon">▤</span>모든 할 일<span class="nav-count" id="all-count">0</span></button>
+          <button class="nav-item" data-view="upcoming"><span class="nav-icon">↗</span>예정된 일</button>
+          <button class="nav-item" data-view="completed"><span class="nav-icon">✓</span>완료한 일</button>
+        </nav>
+        <div class="side-bottom"><div class="privacy-icon">⌑</div><div><strong>나만의 기록</strong><p>할 일은 이 기기에 안전하게 저장돼요.</p></div></div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar"><div class="breadcrumb">내 공간 <span>/</span> <b id="crumb-label">하루 보기</b></div><div class="top-actions"><span class="saved-indicator" id="sync-indicator"><i></i><span id="sync-label">이 기기에 저장</span></span><button class="account-action" id="account-action">기기 간 동기화</button></div></header>
+        <div class="content-grid">
+          <section class="task-section">
+            <div class="page-heading"><div><div class="eyebrow" id="date-eyebrow">MY DAY</div><h1 id="page-title">오늘의 할 일</h1><p id="page-subtitle">작은 한 걸음부터 시작해요.</p></div><button class="primary-button" id="new-task"><span>＋</span> 새 할 일</button></div>
+            <div class="summary-row"><div class="summary-card"><span class="summary-icon">◷</span><span><b id="summary-open">0</b><small>남은 할 일</small></span></div><div class="summary-card"><span class="summary-icon muted">✓</span><span><b id="summary-done">0</b><small>완료한 일</small></span></div><div class="progress-card"><div class="progress-top"><small>오늘의 진행률</small><b id="progress-label">0%</b></div><div class="progress-track"><span id="progress-bar"></span></div></div></div>
+            <div class="list-toolbar"><div class="filter-tabs" role="tablist"><button class="filter-tab selected" data-filter="all">전체</button><button class="filter-tab" data-filter="active">진행 중</button><button class="filter-tab" data-filter="done">완료</button></div><label class="search-box"><span>⌕</span><input id="search-input" type="search" placeholder="할 일 검색" aria-label="할 일 검색" /><kbd>⌘ K</kbd></label></div>
+            <div id="task-list" class="task-list"></div>
+          </section>
+
+          <aside class="calendar-panel">
+            <div class="calendar-title"><div><div class="eyebrow">YOUR SCHEDULE</div><h2>달력</h2></div><button class="today-button" id="go-today">오늘</button></div>
+            <div class="month-control"><button id="prev-month" aria-label="이전 달">‹</button><strong id="month-label"></strong><button id="next-month" aria-label="다음 달">›</button></div>
+            <div class="calendar-grid" id="calendar-grid" aria-label="월간 달력"></div>
+            <div class="calendar-legend"><span><i class="legend-dot"></i>할 일 있음</span><span id="selected-date-label"></span></div>
+            <div class="calendar-divider"></div>
+            <div class="up-next-heading"><div><h3 id="agenda-title">선택한 날</h3><span id="agenda-count">할 일이 없어요</span></div><button id="agenda-add" aria-label="선택한 날짜에 할 일 추가">＋</button></div>
+            <div id="agenda-list" class="agenda-list"></div>
+            <div class="calendar-note"><span>✦</span> 계획은 언제든 바꿀 수 있어요.</div>
+          </aside>
+        </div>
+        <footer class="footer-note"><span>개인적인 하루를 위한 작은 공간</span><span>저장 위치 · 이 브라우저</span></footer>
+      </main>
+    </div>
+
+    <dialog id="account-dialog" class="task-dialog account-dialog">
+      <form id="account-form">
+        <div class="dialog-head"><div><div class="eyebrow">CLOUD SYNC</div><h2 id="account-title">기기 간 동기화</h2></div><button type="button" class="icon-button" id="close-account-dialog" aria-label="닫기">×</button></div>
+        <p class="account-copy" id="account-copy">계정으로 로그인하면 여러 기기에서 같은 할 일을 볼 수 있어요.</p>
+        <label class="field-label" for="account-email">이메일</label><input class="text-field" id="account-email" type="email" autocomplete="email" placeholder="you@example.com" required />
+        <label class="field-label" for="account-password">비밀번호</label><input class="text-field" id="account-password" type="password" autocomplete="current-password" minlength="8" placeholder="8자 이상" required />
+        <p class="account-message" id="account-message" role="status"></p>
+        <div class="dialog-actions account-actions"><button type="button" class="text-link" id="account-mode-toggle">계정 만들기</button><span class="action-spacer"></span><button type="button" class="secondary-button hidden" id="account-logout">로그아웃</button><button class="primary-button" id="account-submit">로그인</button></div>
+      </form>
+    </dialog>
+    <dialog id="task-dialog" class="task-dialog">
+      <form id="task-form" method="dialog">
+        <div class="dialog-head"><div><div class="eyebrow" id="dialog-eyebrow">NEW TASK</div><h2 id="dialog-title">새 할 일</h2></div><button type="button" class="icon-button" id="close-dialog" aria-label="닫기">×</button></div>
+        <label class="field-label" for="task-title">무엇을 할까요?</label><input class="text-field title-field" id="task-title" maxlength="120" placeholder="예: 프로젝트 기획안 정리하기" required />
+        <label class="field-label" for="task-note">메모 <span>선택</span></label><textarea class="text-field note-field" id="task-note" rows="3" maxlength="500" placeholder="필요한 내용을 간단히 적어두세요."></textarea>
+        <div class="field-pair"><div><label class="field-label" for="task-date">날짜</label><input class="text-field" id="task-date" type="date" required /></div><div><label class="field-label" for="task-priority">우선순위</label><select class="text-field" id="task-priority"><option value="normal">보통</option><option value="high">높음</option><option value="low">낮음</option></select></div></div>
+        <div class="dialog-actions"><button type="button" class="delete-button hidden" id="delete-task">삭제</button><span class="action-spacer"></span><button type="button" class="secondary-button" id="cancel-dialog">취소</button><button class="primary-button" id="save-task">저장하기</button></div>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status"></div>
+    <script src="sync-config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
