@@ -1,11 +1,13 @@
-
 <!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#101010" />
-    <title>오늘, 할 일</title>    <link rel="icon" type="image/svg+xml" href="favicon.svg" />    <link rel="manifest" href="todo.webmanifest" />    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <title>오늘, 할 일</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="manifest" href="todo.webmanifest" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -68,6 +70,17 @@
         <div class="field-pair"><div><label class="field-label" for="task-date">날짜</label><input class="text-field" id="task-date" type="date" required /></div><div><label class="field-label" for="task-priority">우선순위</label><select class="text-field" id="task-priority"><option value="normal">보통</option><option value="high">높음</option><option value="low">낮음</option></select></div></div>
         <div class="dialog-actions"><button type="button" class="delete-button hidden" id="delete-task">삭제</button><span class="action-spacer"></span><button type="button" class="secondary-button" id="cancel-dialog">취소</button><button class="primary-button" id="save-task">저장하기</button></div>
       </form>
+    </dialog>
+    <dialog id="task-actions-dialog" class="task-dialog task-actions-dialog">
+      <div class="task-actions-content"><div class="dialog-head"><div><div class="eyebrow">TASK OPTIONS</div><h2 id="task-actions-title">할 일</h2></div><button type="button" class="icon-button" id="close-task-actions" aria-label="닫기">×</button></div>
+        <div class="task-action-list"><button type="button" data-task-action="date">날짜 바꾸기</button><button type="button" data-task-action="routine">루틴 등록하기</button><button type="button" data-task-action="today">오늘 하기</button><button type="button" data-task-action="edit">수정하기</button><button type="button" class="danger-action" data-task-action="delete">삭제하기</button></div>
+      </div>
+    </dialog>
+    <dialog id="date-dialog" class="task-dialog">
+      <form id="date-form"><div class="dialog-head"><div><div class="eyebrow">CHANGE DATE</div><h2>날짜 바꾸기</h2></div><button type="button" class="icon-button" data-close-dialog="date-dialog" aria-label="닫기">×</button></div><label class="field-label" for="move-date">할 날짜</label><input class="text-field" id="move-date" type="date" required /><div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="secondary-button" data-close-dialog="date-dialog">취소</button><button class="primary-button">날짜 저장</button></div></form>
+    </dialog>
+    <dialog id="routine-dialog" class="task-dialog">
+      <form id="routine-form"><div class="dialog-head"><div><div class="eyebrow">WEEKLY ROUTINE</div><h2>루틴 등록하기</h2></div><button type="button" class="icon-button" data-close-dialog="routine-dialog" aria-label="닫기">×</button></div><p class="routine-summary" id="routine-summary"></p><label class="field-label" for="routine-start">시작 날짜</label><input class="text-field" id="routine-start" type="date" required /><div class="field-label">반복 요일</div><div class="weekday-picker" id="routine-weekdays"><label><input type="checkbox" value="1"><span>월</span></label><label><input type="checkbox" value="2"><span>화</span></label><label><input type="checkbox" value="3"><span>수</span></label><label><input type="checkbox" value="4"><span>목</span></label><label><input type="checkbox" value="5"><span>금</span></label><label><input type="checkbox" value="6"><span>토</span></label><label><input type="checkbox" value="0"><span>일</span></label></div><div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="secondary-button" data-close-dialog="routine-dialog">취소</button><button class="primary-button">루틴 등록</button></div></form>
     </dialog>
     <div id="toast" class="toast" role="status"></div>
     <script src="sync-config.js"></script>
