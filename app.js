@@ -530,7 +530,7 @@
       const task = tasks.find((t) => t.id === input.dataset.task);
       const sub = task?.subtasks.find((s) => s.id === input.dataset.sub);
       if (sub) {
-        sub.done = input.checked;
+        sub.done = input.checked; task.done = task.subtasks.length > 0 && task.subtasks.every((item) => item.done);
         persist(task);
       }
     }
