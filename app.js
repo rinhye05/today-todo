@@ -1,21 +1,3 @@
-function restoreAuthCallback() {
-  const params = new URLSearchParams(location.hash.slice(1));
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-  if (!accessToken || !refreshToken) return;
-  const expiresIn = Number(params.get('expires_in') || 3600);
-  const session = {
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    expires_in: expiresIn,
-    expires_at: Number(params.get('expires_at') || Math.floor(Date.now() / 1000) + expiresIn),
-  };
-  localStorage.setItem('today-todos-sync-session-v1', JSON.stringify(session));
-  history.replaceState(null, '', `${location.pathname}${location.search}`);
-}
-
-
-restoreAuthCallback();
 (() => {
   const STORAGE_KEY = 'today-todos-v1';
   const SESSION_KEY = 'today-todos-sync-session-v1';
@@ -37,6 +19,7 @@ restoreAuthCallback();
   let view = 'day';
   let filter = 'all';
   let editingId = null;
+  let editingSubtaskId = null;
   let addingSubtaskFor = null;
   let session = null;
   let authMode = 'login';
@@ -83,7 +66,17 @@ restoreAuthCallback();
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     updateAccountUI();
   }
-  function restoreAuthCallback() {  const params = new URLSearchParams(location.hash.slice(1));  const accessToken = params.get('access_token');  const refreshToken = params.get('refresh_token');  if (!accessToken || !refreshToken) return;  const expiresIn = Number(params.get('expires_in') || 3600);  const expiresAt = Number(params.get('expires_at') || Math.floor(Date.now() / 1000) + expiresIn);  saveSession({ access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn, expires_at: expiresAt });  history.replaceState(null, '', `${location.pathname}${location.search}`);}function clearSession() {
+  function restoreAuthCallback() {
+    const params = new URLSearchParams(location.hash.slice(1));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (!accessToken || !refreshToken) return;
+    const expiresIn = Number(params.get('expires_in') || 3600);
+    const expiresAt = Number(params.get('expires_at') || Math.floor(Date.now() / 1000) + expiresIn);
+    saveSession({ access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn, expires_at: expiresAt });
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
+  }
+  function clearSession() {
     session = null;
     localStorage.removeItem(SESSION_KEY);
     clearInterval(pollTimer);
@@ -249,7 +242,6 @@ restoreAuthCallback();
   }
   const sortTasks = (items) => [...items].sort((a, b) => a.done - b.done || a.date.localeCompare(b.date) || ({ high: 0, normal: 1, low: 2 }[a.priority] - { high: 0, normal: 1, low: 2 }[b.priority]) || a.createdAt - b.createdAt);
   const subtasksDone = (task) => task.subtasks.filter((s) => s.done).length;
-  const syncDoneFromSubtasks = (task) => { if (task.subtasks.length) task.done = task.subtasks.every((subtask) => subtask.done); };
 
   function getVisibleTasks() {
     let items = tasks;
@@ -295,11 +287,17 @@ restoreAuthCallback();
       const count = task.subtasks.length;
       const priority = task.priority !== 'normal' ? `<span class="priority ${task.priority}">${task.priority === 'high' ? '높음' : '낮음'}</span>` : '';
       const dateMeta = view !== 'day' ? `<span>◷ ${escapeHTML(fmtDate(task.date, { month: 'short', day: 'numeric' }))}</span>` : '';
-      const subtasks = task.subtasks.map((sub, index) => `<label class="subtask-row ${sub.done ? 'done' : ''}"><input type="checkbox" data-action="subtoggle" data-task="${task.id}" data-sub="${sub.id}" ${sub.done ? 'checked' : ''} aria-label="${escapeHTML(sub.title)} 완료"><span>${escapeHTML(sub.title)}</span><button type="button" class="subtask-delete" data-action="subdelete" data-task="${task.id}" data-sub="${sub.id}" aria-label="하위 주제 삭제">×</button></label>`).join('');
+      const subtasks = task.subtasks.map((sub) => {
+        const isEditing = editingSubtaskId === `${task.id}:${sub.id}`;
+        const title = isEditing
+          ? `<form class="subtask-edit" data-task="${task.id}" data-sub="${sub.id}"><input class="subtask-edit-input" maxlength="120" value="${escapeHTML(sub.title)}" aria-label="하위 할 일 수정"><button type="submit" aria-label="수정 저장">저장</button><button type="button" data-action="canceleditsub" aria-label="수정 취소">취소</button></form>`
+          : `<button type="button" class="subtask-title" data-action="editsub" data-task="${task.id}" data-sub="${sub.id}" title="눌러서 수정">${escapeHTML(sub.title)}</button>`;
+        return `<div class="subtask-row ${sub.done ? 'done' : ''}"><input type="checkbox" data-action="subtoggle" data-task="${task.id}" data-sub="${sub.id}" ${sub.done ? 'checked' : ''} aria-label="${escapeHTML(sub.title)} 완료">${title}<button type="button" class="subtask-delete" data-action="subdelete" data-task="${task.id}" data-sub="${sub.id}" aria-label="하위 주제 삭제">×</button></div>`;
+      }).join('');
       const subtaskInput = addingSubtaskFor === task.id
         ? `<form class="subtask-entry" data-task="${task.id}"><input id="subtask-entry" maxlength="120" placeholder="하위 주제 입력…" aria-label="하위 주제 입력" autocomplete="off"><button type="submit" aria-label="하위 주제 저장">추가</button><button type="button" data-action="cancelsub" aria-label="입력 취소">취소</button></form>`
         : `<button type="button" class="subtask-add" data-action="addsub" data-id="${task.id}">＋ 하위 주제 추가</button>`;
-      return `<article class="task-card ${task.done ? 'is-done' : ''}"><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><span class="task-title" data-action="edit" data-id="${task.id}">${escapeHTML(task.title)}</span><div class="task-tools"><button type="button" data-action="edit" data-id="${task.id}" title="수정">···</button></div></div>${task.note ? `<div class="task-meta"><span>${escapeHTML(task.note)}</span></div>` : ''}<div class="task-meta">${dateMeta}${priority}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
+      return `<article class="task-card ${task.done ? 'is-done' : ''}"><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="edit" data-id="${task.id}" title="눌러서 수정 또는 날짜 변경">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="edit" data-id="${task.id}" title="수정">···</button></div></div>${task.note ? `<div class="task-meta"><span>${escapeHTML(task.note)}</span></div>` : ''}<div class="task-meta">${dateMeta}${priority}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
     }).join('');
   }
 
@@ -321,7 +319,7 @@ restoreAuthCallback();
     const items = sortTasks(tasks.filter((t) => t.date === selectedDate));
     $('#agenda-title').textContent = selectedDate === iso(today) ? '오늘의 일정' : fmtDate(selectedDate, { month: 'long', day: 'numeric' });
     $('#agenda-count').textContent = items.length ? `${items.filter((t) => !t.done).length}개 남음` : '할 일이 없어요';
-    $('#agenda-list').innerHTML = items.slice(0, 5).map((task) => `<div class="agenda-item ${task.done ? 'done' : ''}"><button class="agenda-check ${task.done ? 'done' : ''}" data-action="toggle" data-id="${task.id}" aria-label="${escapeHTML(task.title)} 완료">${task.done ? '✓' : ''}</button><span title="${escapeHTML(task.title)}">${escapeHTML(task.title)}</span></div>`).join('');
+    $('#agenda-list').innerHTML = items.slice(0, 5).map((task) => `<div class="agenda-item ${task.done ? 'done' : ''}"><button class="agenda-check ${task.done ? 'done' : ''}" data-action="toggle" data-id="${task.id}" aria-label="${escapeHTML(task.title)} 완료">${task.done ? '✓' : ''}</button><button type="button" class="agenda-title" data-action="edit" data-id="${task.id}" title="눌러서 수정">${escapeHTML(task.title)}</button></div>`).join('');
   }
 
   function openDialog(task = null) {
@@ -357,13 +355,27 @@ restoreAuthCallback();
         case 'toggle': if (task) { task.done = !task.done; persist(task); } break;
         case 'addsub': if (task) { addingSubtaskFor = task.id; renderTaskList(); $('#subtask-entry')?.focus(); } break;
         case 'cancelsub': addingSubtaskFor = null; renderTaskList(); break;
-        case 'subdelete': if (task) { task.subtasks = task.subtasks.filter((s) => s.id !== target.dataset.sub); syncDoneFromSubtasks(task); persist(task); } break;
+        case 'editsub': if (task) { editingSubtaskId = `${task.id}:${target.dataset.sub}`; renderTaskList(); const input = $('.subtask-edit-input'); input?.focus(); input?.select(); } break;
+        case 'canceleditsub': editingSubtaskId = null; renderTaskList(); break;
+        case 'subdelete': if (task) { task.subtasks = task.subtasks.filter((s) => s.id !== target.dataset.sub); persist(task); } break;
       }
     }
     const day = event.target.closest('[data-date]');
     if (day) { selectedDate = day.dataset.date; const date = parseDate(selectedDate); shownMonth = new Date(date.getFullYear(), date.getMonth(), 1); view = 'day'; render(); }
   });
   document.addEventListener('submit', (event) => {
+    const editForm = event.target.closest('.subtask-edit');
+    if (editForm) {
+      event.preventDefault();
+      const task = tasks.find((t) => t.id === editForm.dataset.task);
+      const sub = task?.subtasks.find((s) => s.id === editForm.dataset.sub);
+      const title = editForm.querySelector('input').value.trim();
+      if (!task || !sub || !title) { editForm.querySelector('input').focus(); return; }
+      sub.title = title;
+      editingSubtaskId = null;
+      persist(task);
+      return;
+    }
     const form = event.target.closest('.subtask-entry');
     if (!form) return;
     event.preventDefault();
@@ -372,7 +384,6 @@ restoreAuthCallback();
     const title = input.value.trim();
     if (!task || !title) { input.focus(); return; }
     task.subtasks.push({ id: uid(), title, done: false });
-    task.done = false;
     persist(task);
     $('#subtask-entry')?.focus();
   });
@@ -382,11 +393,8 @@ restoreAuthCallback();
       const task = tasks.find((t) => t.id === input.dataset.task);
       const sub = task?.subtasks.find((s) => s.id === input.dataset.sub);
       if (sub) {
-        const wasDone = task.done;
         sub.done = input.checked;
-        syncDoneFromSubtasks(task);
         persist(task);
-        if (!wasDone && task.done) toast('하위 주제를 모두 마쳐 상위 할 일도 완료했어요.');
       }
     }
   });
@@ -409,26 +417,10 @@ restoreAuthCallback();
   document.addEventListener('keydown', (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#search-input').focus(); }
     if (event.key === 'Escape' && event.target.id === 'subtask-entry') { addingSubtaskFor = null; renderTaskList(); }
+    if (event.key === 'Escape' && event.target.classList.contains('subtask-edit-input')) { editingSubtaskId = null; renderTaskList(); }
   });
   render();
   updateAccountUI();
-  restoreAuthCallback();  restoreSession();
-})();
-
-
-(() => {
-  const params = new URLSearchParams(location.hash.slice(1));
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-  if (!accessToken || !refreshToken) return;
-  const expiresIn = Number(params.get('expires_in') || 3600);
-  const session = {
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    expires_in: expiresIn,
-    expires_at: Number(params.get('expires_at') || Math.floor(Date.now() / 1000) + expiresIn),
-  };
-  localStorage.setItem('today-todos-sync-session-v1', JSON.stringify(session));
-  history.replaceState(null, '', `${location.pathname}${location.search}`);
-  location.reload();
+  restoreAuthCallback();
+  restoreSession();
 })();
