@@ -13,13 +13,18 @@
   const fmtDate = (value, options = { month: 'long', day: 'numeric', weekday: 'short' }) => parseDate(value).toLocaleDateString('ko-KR', options);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
   const load = () => { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; } };
-  let tasks = load();
+  const loadedRecords = load();
+  let tasks = loadedRecords.filter((record) => record.type !== 'routine');
+  let routines = loadedRecords.filter((record) => record.type === 'routine');
   let selectedDate = iso(today);
   let shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   let view = 'day';
   let filter = 'all';
   let editingId = null;
   let editingSubtaskId = null;
+  let actionContext = null;
+  let dateContext = null;
+  let routineContext = null;
   let addingSubtaskFor = null;
   let session = null;
   let authMode = 'login';
@@ -36,7 +41,7 @@
   const dateNames = { day: '하루 보기', all: '모든 할 일', upcoming: '예정된 일', completed: '완료한 일' };
   const persist = (changedTask = null) => {
     if (changedTask) changedTask.updatedAt = Date.now();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...tasks, ...routines]));
     if (!applyingCloudData) {
       lastLocalChangeAt = Date.now();
       localStorage.setItem(LAST_CHANGE_KEY, String(lastLocalChangeAt));
@@ -97,15 +102,18 @@
       const current = merged.get(task.id);
       if (!current || taskFreshness(task) >= taskFreshness(current)) merged.set(task.id, task);
     }
-    return [...merged.values()].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || 0) - (b.createdAt || 0));
+    return [...merged.values()].sort((a, b) => String(a.date || a.startDate || '').localeCompare(String(b.date || b.startDate || '')) || (a.createdAt || 0) - (b.createdAt || 0));
   }
   function applyCloudTasks(cloudTasks) {
     applyingCloudData = true;
-    tasks = Array.isArray(cloudTasks) ? cloudTasks : [];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    const records = Array.isArray(cloudTasks) ? cloudTasks : [];
+    tasks = records.filter((record) => record.type !== 'routine');
+    routines = records.filter((record) => record.type === 'routine');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
     lastLocalChangeAt = 0;
     localStorage.removeItem(LAST_CHANGE_KEY);
     applyingCloudData = false;
+    generateRoutineTasks();
     render();
   }
   async function readCloudDocument() {
@@ -119,7 +127,7 @@
     const response = await requestJson(`${syncUrl}/rest/v1/todo_documents?on_conflict=owner_id`, {
       method: 'POST',
       headers: { ...supabaseHeaders(session.access_token), Prefer: 'resolution=merge-duplicates,return=representation' },
-      body: JSON.stringify({ owner_id: session.user.id, tasks }),
+      body: JSON.stringify({ owner_id: session.user.id, tasks: [...tasks, ...routines] }),
     });
     lastSyncedAt = Date.parse(response[0]?.updated_at || new Date().toISOString());
     localStorage.setItem(LAST_SYNC_KEY, String(lastSyncedAt));
@@ -135,11 +143,12 @@
     setSyncLabel('동기화 중…');
     const remote = await readCloudDocument();
     if (!remote) {
-      if (tasks.length) await writeCloudDocument();
+      if (tasks.length || routines.length) await writeCloudDocument();
       else setSyncLabel('동기화 완료');
       return;
     }
-    const merged = mergeTaskSnapshots(remote.tasks || [], tasks);
+    const localRecords = [...tasks, ...routines];
+    const merged = mergeTaskSnapshots(remote.tasks || [], localRecords);
     const remoteIds = new Set((remote.tasks || []).map((task) => task.id));
     const needsUpload = merged.length !== remoteIds.size || merged.some((task) => !remoteIds.has(task.id) || JSON.stringify(task) !== JSON.stringify((remote.tasks || []).find((item) => item.id === task.id)));
     applyCloudTasks(merged);
@@ -244,7 +253,7 @@
   const subtasksDone = (task) => task.subtasks.filter((s) => s.done).length;
 
   function getVisibleTasks() {
-    let items = tasks;
+    let items = tasks.filter((task) => task.type !== 'routine');
     if (view === 'day') items = items.filter((t) => t.date === selectedDate);
     if (view === 'upcoming') items = items.filter((t) => t.date > iso(today) && !t.done);
     if (view === 'completed') items = items.filter((t) => t.done);
@@ -253,6 +262,63 @@
     if (filter === 'active') items = items.filter((t) => !t.done);
     if (filter === 'done') items = items.filter((t) => t.done);
     return sortTasks(items);
+  }
+
+  function generateRoutineTasks() {
+    const through = iso(today);
+    let changed = false;
+    routines.forEach((routine) => {
+      routine.occurrences = Array.isArray(routine.occurrences) ? routine.occurrences : [];
+      if (routine.startDate > through) return;
+      const date = parseDate(routine.startDate);
+      while (iso(date) <= through) {
+        const day = date.getDay();
+        const key = iso(date);
+        if (routine.weekdays.includes(day) && !routine.occurrences.includes(key)) {
+          const existing = routine.subtask
+            ? tasks.find((task) => task.date === key && task.title === routine.parentTitle && task.subtasks.some((sub) => sub.title === routine.title))
+            : tasks.find((task) => task.date === key && task.title === routine.title);
+          if (!existing) {
+            const now = Date.now();
+            const generated = { id: uid(), title: routine.subtask ? routine.parentTitle : routine.title, note: routine.subtask ? '' : routine.note, date: key, priority: routine.priority || 'normal', done: false, subtasks: [], createdAt: now, updatedAt: now, routineId: routine.id };
+            if (routine.subtask) generated.subtasks.push({ id: uid(), title: routine.title, done: false, routineId: routine.id });
+            tasks.push(generated);
+          }
+          routine.occurrences.push(key);
+          routine.updatedAt = Date.now();
+          changed = true;
+        }
+        date.setDate(date.getDate() + 1);
+      }
+    });
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...tasks, ...routines]));
+      if (session) scheduleCloudSave();
+    }
+  }
+
+  function openTaskActions(task, sub = null) {
+    if (!task) return;
+    actionContext = { taskId: task.id, subId: sub?.id ?? null };
+    $('#task-actions-title').textContent = sub ? sub.title : task.title;
+    $('#task-actions-dialog').showModal();
+  }
+
+  function currentActionTarget() {
+    const task = tasks.find((item) => item.id === actionContext?.taskId);
+    const sub = task?.subtasks.find((item) => item.id === actionContext?.subId);
+    return { task, sub };
+  }
+
+  function registerRoutine(task, sub) {
+    if (!task) return;
+    routineContext = { taskId: task.id, subId: sub?.id ?? null };
+    $('#routine-summary').textContent = sub ? `${task.title} · ${sub.title}` : task.title;
+    const start = new Date(today); start.setDate(start.getDate() + 1);
+    $('#routine-start').value = iso(start);
+    $('#routine-start').min = iso(today);
+    document.querySelectorAll('#routine-weekdays input').forEach((input) => { input.checked = [1, 2, 3, 4, 5].includes(Number(input.value)); });
+    $('#routine-dialog').showModal();
   }
 
   function render() {
@@ -291,13 +357,13 @@
         const isEditing = editingSubtaskId === `${task.id}:${sub.id}`;
         const title = isEditing
           ? `<form class="subtask-edit" data-task="${task.id}" data-sub="${sub.id}"><input class="subtask-edit-input" maxlength="120" value="${escapeHTML(sub.title)}" aria-label="하위 할 일 수정"><button type="submit" aria-label="수정 저장">저장</button><button type="button" data-action="canceleditsub" aria-label="수정 취소">취소</button></form>`
-          : `<button type="button" class="subtask-title" data-action="editsub" data-task="${task.id}" data-sub="${sub.id}" title="눌러서 수정">${escapeHTML(sub.title)}</button>`;
+          : `<button type="button" class="subtask-title" data-action="subtaskmenu" data-task="${task.id}" data-sub="${sub.id}" title="할 일 작업">${escapeHTML(sub.title)}</button>`;
         return `<div class="subtask-row ${sub.done ? 'done' : ''}"><input type="checkbox" data-action="subtoggle" data-task="${task.id}" data-sub="${sub.id}" ${sub.done ? 'checked' : ''} aria-label="${escapeHTML(sub.title)} 완료">${title}<button type="button" class="subtask-delete" data-action="subdelete" data-task="${task.id}" data-sub="${sub.id}" aria-label="하위 주제 삭제">×</button></div>`;
       }).join('');
       const subtaskInput = addingSubtaskFor === task.id
         ? `<form class="subtask-entry" data-task="${task.id}"><input id="subtask-entry" maxlength="120" placeholder="하위 주제 입력…" aria-label="하위 주제 입력" autocomplete="off"><button type="submit" aria-label="하위 주제 저장">추가</button><button type="button" data-action="cancelsub" aria-label="입력 취소">취소</button></form>`
         : `<button type="button" class="subtask-add" data-action="addsub" data-id="${task.id}">＋ 하위 주제 추가</button>`;
-      return `<article class="task-card ${task.done ? 'is-done' : ''}"><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="edit" data-id="${task.id}" title="눌러서 수정 또는 날짜 변경">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="edit" data-id="${task.id}" title="수정">···</button></div></div>${task.note ? `<div class="task-meta"><span>${escapeHTML(task.note)}</span></div>` : ''}<div class="task-meta">${dateMeta}${priority}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
+      return `<article class="task-card ${task.done ? 'is-done' : ''}"><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">···</button></div></div>${task.note ? `<div class="task-meta"><span>${escapeHTML(task.note)}</span></div>` : ''}<div class="task-meta">${dateMeta}${priority}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
     }).join('');
   }
 
@@ -319,7 +385,7 @@
     const items = sortTasks(tasks.filter((t) => t.date === selectedDate));
     $('#agenda-title').textContent = selectedDate === iso(today) ? '오늘의 일정' : fmtDate(selectedDate, { month: 'long', day: 'numeric' });
     $('#agenda-count').textContent = items.length ? `${items.filter((t) => !t.done).length}개 남음` : '할 일이 없어요';
-    $('#agenda-list').innerHTML = items.slice(0, 5).map((task) => `<div class="agenda-item ${task.done ? 'done' : ''}"><button class="agenda-check ${task.done ? 'done' : ''}" data-action="toggle" data-id="${task.id}" aria-label="${escapeHTML(task.title)} 완료">${task.done ? '✓' : ''}</button><button type="button" class="agenda-title" data-action="edit" data-id="${task.id}" title="눌러서 수정">${escapeHTML(task.title)}</button></div>`).join('');
+    $('#agenda-list').innerHTML = items.slice(0, 5).map((task) => `<div class="agenda-item ${task.done ? 'done' : ''}"><button class="agenda-check ${task.done ? 'done' : ''}" data-action="toggle" data-id="${task.id}" aria-label="${escapeHTML(task.title)} 완료">${task.done ? '✓' : ''}</button><button type="button" class="agenda-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button></div>`).join('');
   }
 
   function openDialog(task = null) {
@@ -352,16 +418,87 @@
       switch (target.dataset.action) {
         case 'new': openDialog(); break;
         case 'edit': if (task) openDialog(task); break;
+        case 'taskmenu': if (task) openTaskActions(task); break;
+        case 'subtaskmenu': if (task) openTaskActions(task, task.subtasks.find((sub) => sub.id === target.dataset.sub)); break;
         case 'toggle': if (task) { task.done = !task.done; persist(task); } break;
         case 'addsub': if (task) { addingSubtaskFor = task.id; renderTaskList(); $('#subtask-entry')?.focus(); } break;
         case 'cancelsub': addingSubtaskFor = null; renderTaskList(); break;
-        case 'editsub': if (task) { editingSubtaskId = `${task.id}:${target.dataset.sub}`; renderTaskList(); const input = $('.subtask-edit-input'); input?.focus(); input?.select(); } break;
         case 'canceleditsub': editingSubtaskId = null; renderTaskList(); break;
         case 'subdelete': if (task) { task.subtasks = task.subtasks.filter((s) => s.id !== target.dataset.sub); persist(task); } break;
       }
     }
     const day = event.target.closest('[data-date]');
     if (day) { selectedDate = day.dataset.date; const date = parseDate(selectedDate); shownMonth = new Date(date.getFullYear(), date.getMonth(), 1); view = 'day'; render(); }
+  });
+  $('#task-actions-dialog').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-task-action]');
+    if (!button) return;
+    const { task, sub } = currentActionTarget();
+    const action = button.dataset.taskAction;
+    $('#task-actions-dialog').close();
+    if (!task) return;
+    if (action === 'date') {
+      dateContext = { taskId: task.id, subId: sub?.id ?? null };
+      $('#move-date').value = task.date;
+      $('#date-dialog').showModal();
+    } else if (action === 'today') {
+      task.date = iso(today);
+      selectedDate = task.date;
+      shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      persist(task);
+      toast('오늘 할 일로 옮겼어요.');
+    } else if (action === 'routine') {
+      registerRoutine(task, sub);
+    } else if (action === 'edit') {
+      if (sub) {
+        editingSubtaskId = `${task.id}:${sub.id}`;
+        renderTaskList();
+        const input = $('.subtask-edit-input'); input?.focus(); input?.select();
+      } else openDialog(task);
+    } else if (action === 'delete') {
+      const message = sub ? '이 하위 할 일을 삭제할까요?' : '이 할 일을 삭제할까요? 하위 할 일도 함께 삭제돼요.';
+      if (confirm(message)) {
+        if (sub) task.subtasks = task.subtasks.filter((item) => item.id !== sub.id);
+        else tasks = tasks.filter((item) => item.id !== task.id);
+        persist(task);
+        toast('삭제했어요.');
+      }
+    }
+  });
+  $('#close-task-actions').addEventListener('click', () => $('#task-actions-dialog').close());
+  document.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => document.getElementById(button.dataset.closeDialog).close()));
+  $('#date-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const task = tasks.find((item) => item.id === dateContext?.taskId);
+    if (!task) return;
+    task.date = $('#move-date').value;
+    const movedDate = parseDate(task.date);
+    selectedDate = task.date;
+    shownMonth = new Date(movedDate.getFullYear(), movedDate.getMonth(), 1);
+    $('#date-dialog').close();
+    persist(task);
+    toast('날짜를 바꿨어요.');
+  });
+  $('#routine-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const task = tasks.find((item) => item.id === routineContext?.taskId);
+    const sub = task?.subtasks.find((item) => item.id === routineContext?.subId);
+    if (!task || (routineContext.subId && !sub)) return;
+    const weekdays = [...document.querySelectorAll('#routine-weekdays input:checked')].map((input) => Number(input.value));
+    if (!weekdays.length) { toast('반복할 요일을 선택해 주세요.'); return; }
+    const title = sub?.title ?? task.title;
+    const parentTitle = task.title;
+    if (routines.some((routine) => routine.title === title && routine.parentTitle === parentTitle && routine.subtask === Boolean(sub))) {
+      $('#routine-dialog').close();
+      toast('이미 등록된 루틴이에요.');
+      return;
+    }
+    routines.push({ id: uid(), type: 'routine', title, parentTitle, subtask: Boolean(sub), note: sub ? '' : task.note, priority: task.priority, startDate: $('#routine-start').value, weekdays, occurrences: [], createdAt: Date.now(), updatedAt: Date.now() });
+    $('#routine-dialog').close();
+    persist();
+    generateRoutineTasks();
+    render();
+    toast('루틴을 등록했어요.');
   });
   document.addEventListener('submit', (event) => {
     const editForm = event.target.closest('.subtask-edit');
@@ -419,6 +556,7 @@
     if (event.key === 'Escape' && event.target.id === 'subtask-entry') { addingSubtaskFor = null; renderTaskList(); }
     if (event.key === 'Escape' && event.target.classList.contains('subtask-edit-input')) { editingSubtaskId = null; renderTaskList(); }
   });
+  generateRoutineTasks();
   render();
   updateAccountUI();
   restoreAuthCallback();
