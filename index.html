@@ -44,6 +44,11 @@
             <div class="page-heading"><div><div class="eyebrow" id="date-eyebrow">MY DAY</div><h1 id="page-title">오늘의 할 일</h1><p id="page-subtitle">작은 한 걸음부터 시작해요.</p></div><div class="heading-actions"><button class="secondary-button" id="new-routine">↻ 루틴 만들기</button><button class="primary-button" id="new-task"><span>＋</span> 새 할 일</button></div></div>
             <div class="summary-row"><div class="summary-card"><span class="summary-icon">◷</span><span><b id="summary-open">0</b><small>남은 할 일</small></span></div><div class="summary-card"><span class="summary-icon muted">✓</span><span><b id="summary-done">0</b><small>완료한 일</small></span></div><div class="progress-card"><div class="progress-top"><small>오늘의 진행률</small><b id="progress-label">0%</b></div><div class="progress-track"><span id="progress-bar"></span></div></div></div>
             <div class="list-toolbar"><div class="filter-tabs" role="tablist"><button class="filter-tab selected" data-filter="all">전체</button><button class="filter-tab" data-filter="active">진행 중</button><button class="filter-tab" data-filter="done">완료</button></div><label class="search-box"><span>⌕</span><input id="search-input" type="search" placeholder="할 일 검색" aria-label="할 일 검색" /><kbd>⌘ K</kbd></label></div>
+            <div id="day-filters" class="day-filters hidden" aria-label="하루 보기 검색 필터">
+              <details class="day-filter-dropdown" id="day-category-filter"><summary>카테고리 <span id="day-category-label">전체</span></summary><div class="day-filter-options" id="day-category-options"></div></details>
+              <details class="day-filter-dropdown" id="day-kind-filter"><summary>항목 종류 <span id="day-kind-label">전체</span></summary><div class="day-filter-options" id="day-kind-options"></div></details>
+              <button type="button" class="text-link" id="reset-day-filters">필터 초기화</button>
+            </div>
             <div id="task-list" class="task-list"></div>
             <div id="routine-list" class="routine-list hidden"></div>
             <section id="planner-view" class="hidden" aria-label="주간 플래너"></section>

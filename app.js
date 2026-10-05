@@ -23,6 +23,8 @@
   let shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   let view = 'overview';
   let filter = 'all';
+  let dayCategories = null;
+  let dayKinds = null;
   let editingId = null;
   let editingSubtaskId = null;
   let actionContext = null;
@@ -261,9 +263,37 @@
   const sortTasks = (items) => [...items].sort((a, b) => a.done - b.done || a.date.localeCompare(b.date) || ({ high: 0, normal: 1, low: 2 }[a.priority] - { high: 0, normal: 1, low: 2 }[b.priority]) || a.createdAt - b.createdAt);
   const subtasksDone = (task) => task.subtasks.filter((s) => s.done).length;
 
+  function matchesDayFilters(item, kind) {
+    return (!dayKinds || dayKinds.has(kind)) && (!dayCategories || dayCategories.has(item.categoryId || ''));
+  }
+
+  function dayFilterOptions() {
+    return {
+      category: [{ id: '', name: '카테고리 없음' }, ...plannerRecords.filter((item) => item.type === 'category' && !item.deleted).map((item) => ({ id: item.id, name: item.name, color: item.color }))],
+      kind: [{ id: 'task', name: '할 일' }, { id: 'routine', name: '루틴' }, { id: 'plan', name: '플랜' }],
+    };
+  }
+
+  function updateDayFilterLabels() {
+    for (const [group, options] of Object.entries(dayFilterOptions())) {
+      const selection = group === 'category' ? dayCategories : dayKinds;
+      const chosen = selection ? options.filter((item) => selection.has(item.id)) : options;
+      $(`#day-${group}-label`).textContent = chosen.length === options.length ? '전체' : chosen.length ? `${chosen.length}개 선택` : '선택 없음';
+    }
+  }
+
+  function renderDayFilters() {
+    $('#day-filters').classList.toggle('hidden', view !== 'day');
+    for (const [group, options] of Object.entries(dayFilterOptions())) {
+      const selection = group === 'category' ? dayCategories : dayKinds;
+      $(`#day-${group}-options`).innerHTML = `<button type="button" class="text-link" data-day-filter-all="${group}">전체 선택</button>` + options.map((item) => `<label><input type="checkbox" data-day-filter="${group}" value="${escapeHTML(item.id)}" ${!selection || selection.has(item.id) ? 'checked' : ''}>${item.color ? `<i class="day-filter-color" style="background:${window.TodoPlannerCore.safeColor(item.color)}"></i>` : ''}<span>${escapeHTML(item.name)}</span></label>`).join('');
+    }
+    updateDayFilterLabels();
+  }
+
   function getVisibleTasks() {
     let items = tasks.filter((task) => task.type !== 'routine');
-    if (view === 'day') items = items.filter((t) => t.date === selectedDate);
+    if (view === 'day') items = items.filter((t) => t.date === selectedDate && matchesDayFilters(t, t.routineId ? 'routine' : 'task'));
     if (view === 'upcoming') items = window.TodoDeadline.upcoming(items, iso(today));
     if (view === 'completed') items = items.filter((t) => t.done);
     const query = $('#search-input').value.trim().toLocaleLowerCase('ko');
@@ -398,7 +428,7 @@
     generateRoutineTasks();
     window.TodoPlanner.prepare();
     const todays = tasks.filter((t) => t.date === iso(today));
-    $('#today-count').textContent = todays.filter((t) => !t.done).length;
+    $('#today-count').textContent = todays.filter((t) => !t.done).length + window.TodoPlanner.dayPlans(iso(today)).filter((plan) => !plan.done && !plan.blocked).length;
     $('#all-count').textContent = tasks.filter((t) => !t.done).length;
     $('#routine-count').textContent = routines.length;
     $('#crumb-label').textContent = dateNames[view];
@@ -414,7 +444,7 @@
     $('#new-routine').classList.toggle('hidden', routineView || ['planner', 'events'].includes(view));
     $('#new-task').innerHTML = `<span>＋</span> ${routineView ? '새 루틴' : '새 할 일'}`;
     $('#new-task').setAttribute('aria-label', routineView ? '새 루틴 만들기' : '새 할 일 만들기');
-    const selectedItems = tasks.filter((t) => t.date === selectedDate);
+    const selectedItems = [...tasks.filter((t) => t.date === selectedDate), ...(view === 'day' ? window.TodoPlanner.dayPlans(selectedDate).filter((plan) => !plan.blocked) : [])];
     const remaining = selectedItems.filter((t) => !t.done).length;
     const done = selectedItems.filter((t) => t.done).length;
     const percent = selectedItems.length ? Math.round(done / selectedItems.length * 100) : 0;
@@ -423,7 +453,7 @@
     document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.view === view));
     $('#month-label').textContent = shownMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
     $('#selected-date-label').textContent = fmtDate(selectedDate);
-    renderRoutineSelector(); renderCalendar(); renderTaskList(); renderAgenda(); renderRoutineList();
+    renderDayFilters(); renderRoutineSelector(); renderCalendar(); renderTaskList(); renderAgenda(); renderRoutineList();
     window.TodoPlanner.render();
   }
 
@@ -452,13 +482,16 @@
 
   function renderTaskList() {
     const items = getVisibleTasks();
-    if (!items.length) {
-      const headline = $('#search-input').value.trim() ? '검색 결과가 없어요' : filter === 'done' ? '아직 완료한 일이 없어요' : filter === 'active' ? '진행 중인 일이 없어요' : view === 'day' ? '이 날은 여유롭네요' : '아직 할 일이 없어요';
-      const copy = $('#search-input').value.trim() ? '다른 단어로 찾아보거나 새 할 일을 추가해보세요.' : '해야 할 일을 적어두면 여기에 모아둘게요.';
+    const query = $('#search-input').value.trim().toLocaleLowerCase('ko');
+    const plans = view === 'day' ? window.TodoPlanner.dayPlans(selectedDate).filter((plan) => matchesDayFilters(plan, 'plan') && (filter !== 'done' || plan.done) && (filter !== 'active' || (!plan.done && !plan.blocked)) && (!query || `${plan.title} ${plan.note || ''}`.toLocaleLowerCase('ko').includes(query))) : [];
+    const planCards = plans.map((plan) => window.TodoPlanner.dayPlanCard(plan, selectedDate)).join('');
+    if (!items.length && !plans.length) {
+      const headline = $('#search-input').value.trim() || (view === 'day' && (dayCategories || dayKinds)) ? '검색 결과가 없어요' : filter === 'done' ? '아직 완료한 일이 없어요' : filter === 'active' ? '진행 중인 일이 없어요' : view === 'day' ? '이 날은 여유롭네요' : '아직 할 일이 없어요';
+      const copy = $('#search-input').value.trim() || (view === 'day' && (dayCategories || dayKinds)) ? '다른 단어로 찾아보거나 새 할 일을 추가해보세요.' : '해야 할 일을 적어두면 여기에 모아둘게요.';
       list.innerHTML = `<div class="empty-state"><div class="empty-icon">✦</div><h3>${headline}</h3><p>${copy}</p><button class="text-link" data-action="new">＋ 할 일 추가하기</button></div>`;
       return;
     }
-    list.innerHTML = items.map((task) => {
+    list.innerHTML = planCards + items.map((task) => {
       const count = task.subtasks.length;
       const priority = task.priority !== 'normal' ? `<span class="priority ${task.priority}">${task.priority === 'high' ? '높음' : '낮음'}</span>` : '';
       const dateMeta = view !== 'day' ? `<span>◷ ${escapeHTML(fmtDate(task.date, { month: 'short', day: 'numeric' }))}</span>` : '';
@@ -754,6 +787,29 @@
   });
   $('#clear-task-deadline').addEventListener('click', () => { $('#task-deadline').value = ''; });
   $('#search-input').addEventListener('input', renderTaskList);
+  $('#day-filters').addEventListener('change', (event) => {
+    const group = event.target.dataset.dayFilter;
+    if (!group) return;
+    const selection = new Set([...document.querySelectorAll(`[data-day-filter="${group}"]:checked`)].map((input) => input.value));
+    const value = selection.size === dayFilterOptions()[group].length ? null : selection;
+    if (group === 'category') dayCategories = value; else dayKinds = value;
+    updateDayFilterLabels(); renderTaskList();
+  });
+  $('#day-filters').addEventListener('click', (event) => {
+    const group = event.target.dataset.dayFilterAll;
+    if (group || event.target.id === 'reset-day-filters') {
+      if (!group || group === 'category') dayCategories = null;
+      if (!group || group === 'kind') dayKinds = null;
+      renderDayFilters(); renderTaskList();
+    }
+  });
+  document.addEventListener('click', (event) => {
+    document.querySelectorAll('.day-filter-dropdown[open]').forEach((dropdown) => { if (!dropdown.contains(event.target)) dropdown.open = false; });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') document.querySelectorAll('.day-filter-dropdown[open]').forEach((dropdown) => { dropdown.open = false; dropdown.querySelector('summary').focus(); });
+  });
+
   $('#task-form').addEventListener('submit', saveTask); $('#close-dialog').addEventListener('click', closeDialog); $('#cancel-dialog').addEventListener('click', closeDialog);
   $('#delete-task').addEventListener('click', () => { if (!editingId) return; if (confirm('이 할 일을 삭제할까요? 하위 주제도 함께 삭제돼요.')) { tasks = tasks.filter((t) => t.id !== editingId); closeDialog(); persist(); toast('할 일을 삭제했어요.'); } });
   dialog.addEventListener('click', (event) => { if (event.target === dialog) closeDialog(); });

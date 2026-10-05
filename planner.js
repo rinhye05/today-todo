@@ -91,6 +91,15 @@
     return `<input class="plan-completion" type="checkbox" data-planner-action="plan-check" data-id="${esc(plan.id)}" data-day="${date}" ${plan.done ? 'checked' : ''} ${template || plan.blocked || date > state().today ? 'disabled' : ''} aria-label="${esc(plan.title)} ${date} 플랜 완료">`;
   }
 
+  function dayPlans(date) {
+    const visible = new Set(state().records.filter((item) => item.type === 'plan' && item.showInCalendar === true).map((item) => item.id));
+    return calendarInfo(date).model.plans.filter((plan) => visible.has(plan.id));
+  }
+
+  function dayPlanCard(plan, date) {
+    return `<article class="task-card day-plan-card ${plan.done ? 'is-done' : ''}" data-day-plan="${esc(plan.id)}">${planCheck(plan, date)}<div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-planner-action="edit-plan" data-id="${esc(plan.id)}">${esc(plan.title)}</button></div>${plan.note ? `<div class="task-meta"><span>${esc(plan.note)}</span></div>` : ''}<div class="task-meta"><span class="routine-badge">▥ 주간 플랜</span><span>◷ ${esc(plan.startTime)}–${esc(plan.endTime)}</span>${badge(plan.categoryId)}${plan.blocked ? '<span>일정으로 제외</span>' : ''}</div></div></article>`;
+  }
+
   function grid(model, template) {
     const all = model.flatMap((day) => [...day.plans, ...(!template ? [...day.events.filter((item) => !item.allDay), ...day.routinePoints] : [])]);
     const begin = all.length ? Math.min(360, ...all.map((item) => Math.floor(item.start / 60) * 60)) : 360;
@@ -490,5 +499,5 @@
       }
     });
   }
-  window.TodoPlanner = { init(options) { api = options; addDialogs(); bindForms(); }, prepare, render, fillCategories, categoryBadge: badge, calendarInfo, renderCalendarHistory };
+  window.TodoPlanner = { init(options) { api = options; addDialogs(); bindForms(); }, prepare, render, fillCategories, categoryBadge: badge, calendarInfo, renderCalendarHistory, dayPlans, dayPlanCard };
 })();
