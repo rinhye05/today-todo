@@ -3,6 +3,7 @@
   const SESSION_KEY = 'today-todos-sync-session-v1';
   const LAST_SYNC_KEY = 'today-todos-last-sync-v1';
   const LAST_CHANGE_KEY = 'today-todos-last-change-v1';
+  const schedule = window.TodoSchedule;
   const syncConfig = window.SYNC_CONFIG || {};
   const syncUrl = String(syncConfig.url || '').replace(/\/$/, '');
   const publishableKey = String(syncConfig.publishableKey || '');
@@ -12,19 +13,23 @@
   const parseDate = (value) => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); };
   const fmtDate = (value, options = { month: 'long', day: 'numeric', weekday: 'short' }) => parseDate(value).toLocaleDateString('ko-KR', options);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  const load = () => { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; } };
+  const load = () => { try { const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(records) ? records : []; } catch { return []; } };
   const loadedRecords = load();
-  let tasks = loadedRecords.filter((record) => record.type !== 'routine');
-  let routines = loadedRecords.filter((record) => record.type === 'routine');
+  const plannerTypes = new Set(['category', 'plan', 'event', 'plan-check']);
+  let plannerRecords = loadedRecords.filter((record) => plannerTypes.has(record.type));
+  let tasks = loadedRecords.filter((record) => record.type !== 'routine' && !plannerTypes.has(record.type));
+  let routines = loadedRecords.filter((record) => record.type === 'routine').map(schedule.normalizeRoutine);
   let selectedDate = iso(today);
   let shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  let view = 'day';
+  let view = 'overview';
   let filter = 'all';
   let editingId = null;
   let editingSubtaskId = null;
   let actionContext = null;
   let dateContext = null;
   let routineContext = null;
+  let editingRoutineId = null;
+  let selectedRoutineId = '';
   let addingSubtaskFor = null;
   let session = null;
   let authMode = 'login';
@@ -38,15 +43,18 @@
   const $ = (selector) => document.querySelector(selector);
   const list = $('#task-list');
   const dialog = $('#task-dialog');
-  const dateNames = { day: '하루 보기', all: '모든 할 일', upcoming: '예정된 일', completed: '완료한 일' };
-  const persist = (changedTask = null) => {
-    if (changedTask) changedTask.updatedAt = Date.now();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...tasks, ...routines]));
+  const dateNames = { overview: '전체 보기', day: '하루 보기', all: '모든 할 일', upcoming: '예정된 일', completed: '완료한 일', routines: '나의 루틴', planner: '주간 플래너', events: '일정' };
+  const saveRecords = () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...tasks, ...routines, ...plannerRecords]));
     if (!applyingCloudData) {
       lastLocalChangeAt = Date.now();
       localStorage.setItem(LAST_CHANGE_KEY, String(lastLocalChangeAt));
       if (session) scheduleCloudSave();
     }
+  };
+  const persist = (changedTask = null) => {
+    if (changedTask) changedTask.updatedAt = Date.now();
+    saveRecords();
     render();
   };
   const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -107,8 +115,9 @@
   function applyCloudTasks(cloudTasks) {
     applyingCloudData = true;
     const records = Array.isArray(cloudTasks) ? cloudTasks : [];
-    tasks = records.filter((record) => record.type !== 'routine');
-    routines = records.filter((record) => record.type === 'routine');
+    tasks = records.filter((record) => record.type !== 'routine' && !plannerTypes.has(record.type));
+    plannerRecords = records.filter((record) => plannerTypes.has(record.type));
+    routines = records.filter((record) => record.type === 'routine').map(schedule.normalizeRoutine);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
     lastLocalChangeAt = 0;
     localStorage.removeItem(LAST_CHANGE_KEY);
@@ -127,7 +136,7 @@
     const response = await requestJson(`${syncUrl}/rest/v1/todo_documents?on_conflict=owner_id`, {
       method: 'POST',
       headers: { ...supabaseHeaders(session.access_token), Prefer: 'resolution=merge-duplicates,return=representation' },
-      body: JSON.stringify({ owner_id: session.user.id, tasks: [...tasks, ...routines] }),
+      body: JSON.stringify({ owner_id: session.user.id, tasks: [...tasks, ...routines, ...plannerRecords] }),
     });
     lastSyncedAt = Date.parse(response[0]?.updated_at || new Date().toISOString());
     localStorage.setItem(LAST_SYNC_KEY, String(lastSyncedAt));
@@ -143,11 +152,11 @@
     setSyncLabel('동기화 중…');
     const remote = await readCloudDocument();
     if (!remote) {
-      if (tasks.length || routines.length) await writeCloudDocument();
+      if (tasks.length || routines.length || plannerRecords.length) await writeCloudDocument();
       else setSyncLabel('동기화 완료');
       return;
     }
-    const localRecords = [...tasks, ...routines];
+    const localRecords = [...tasks, ...routines, ...plannerRecords];
     const merged = mergeTaskSnapshots(remote.tasks || [], localRecords);
     const remoteIds = new Set((remote.tasks || []).map((task) => task.id));
     const needsUpload = merged.length !== remoteIds.size || merged.some((task) => !remoteIds.has(task.id) || JSON.stringify(task) !== JSON.stringify((remote.tasks || []).find((item) => item.id === task.id)));
@@ -255,35 +264,29 @@
   function getVisibleTasks() {
     let items = tasks.filter((task) => task.type !== 'routine');
     if (view === 'day') items = items.filter((t) => t.date === selectedDate);
-    if (view === 'upcoming') items = items.filter((t) => t.date > iso(today) && !t.done);
+    if (view === 'upcoming') items = window.TodoDeadline.upcoming(items, iso(today));
     if (view === 'completed') items = items.filter((t) => t.done);
     const query = $('#search-input').value.trim().toLocaleLowerCase('ko');
     if (query) items = items.filter((t) => t.title.toLocaleLowerCase('ko').includes(query) || t.note.toLocaleLowerCase('ko').includes(query) || t.subtasks.some((s) => s.title.toLocaleLowerCase('ko').includes(query)));
     if (filter === 'active') items = items.filter((t) => !t.done);
     if (filter === 'done') items = items.filter((t) => t.done);
-    return sortTasks(items);
+    return view === 'upcoming' ? items : sortTasks(items);
   }
 
   function generateRoutineTasks() {
-    const through = iso(today);
+    const ahead = new Date(today); ahead.setDate(ahead.getDate() + 30);
+    const through = [iso(ahead), selectedDate, iso(new Date(shownMonth.getFullYear(), shownMonth.getMonth() + 1, 0))].sort().at(-1);
     let changed = false;
     routines.forEach((routine) => {
-      routine.occurrences = Array.isArray(routine.occurrences) ? routine.occurrences : [];
-      if (routine.startDate > through) return;
+      if (!schedule.validDate(routine.startDate) || routine.startDate > through) return;
+      const generatedDates = new Set(routine.occurrences);
+      const existingDates = new Set(tasks.filter((task) => task.routineId === routine.id).map((task) => task.routineDate || task.date));
       const date = parseDate(routine.startDate);
-      while (iso(date) <= through) {
-        const day = date.getDay();
+      const end = routine.endDate && routine.endDate < through ? routine.endDate : through;
+      while (iso(date) <= end) {
         const key = iso(date);
-        if (routine.weekdays.includes(day) && !routine.occurrences.includes(key)) {
-          const existing = routine.subtask
-            ? tasks.find((task) => task.date === key && task.title === routine.parentTitle && task.subtasks.some((sub) => sub.title === routine.title))
-            : tasks.find((task) => task.date === key && task.title === routine.title);
-          if (!existing) {
-            const now = Date.now();
-            const generated = { id: uid(), title: routine.subtask ? routine.parentTitle : routine.title, note: routine.subtask ? '' : routine.note, date: key, priority: routine.priority || 'normal', done: false, subtasks: [], createdAt: now, updatedAt: now, routineId: routine.id };
-            if (routine.subtask) generated.subtasks.push({ id: uid(), title: routine.title, done: false, routineId: routine.id });
-            tasks.push(generated);
-          }
+        if (schedule.isScheduled(routine, key) && !generatedDates.has(key)) {
+          if (!existingDates.has(key)) tasks.push(buildRoutineTask(routine, key));
           routine.occurrences.push(key);
           routine.updatedAt = Date.now();
           changed = true;
@@ -291,10 +294,14 @@
         date.setDate(date.getDate() + 1);
       }
     });
-    if (changed) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...tasks, ...routines]));
-      if (session) scheduleCloudSave();
-    }
+    if (changed) saveRecords();
+  }
+
+  function buildRoutineTask(routine, date) {
+    const now = Date.now();
+    const task = { id: `routine-${routine.id}-${date}`, title: routine.subtask ? routine.parentTitle : routine.title, note: routine.note, date, priority: routine.priority, categoryId: routine.categoryId || '', done: false, subtasks: [], createdAt: now, updatedAt: now, routineId: routine.id, routineDate: date };
+    if (routine.subtask) task.subtasks.push({ id: `sub-${routine.id}-${date}`, title: routine.title, done: false, routineId: routine.id });
+    return task;
   }
 
   function openTaskActions(task, sub = null) {
@@ -312,23 +319,77 @@
 
   function registerRoutine(task, sub) {
     if (!task) return;
-    routineContext = { taskId: task.id, subId: sub?.id ?? null };
-    $('#routine-summary').textContent = sub ? `${task.title} · ${sub.title}` : task.title;
-    const start = new Date(today); start.setDate(start.getDate() + 1);
-    $('#routine-start').value = iso(start);
-    $('#routine-start').min = iso(today);
-    document.querySelectorAll('#routine-weekdays input').forEach((input) => { input.checked = [1, 2, 3, 4, 5].includes(Number(input.value)); });
+    const existing = routines.find((routine) => routine.id === (sub?.routineId || task.routineId));
+    if (existing) { openRoutineDialog(existing); return; }
+    openRoutineDialog(null, task, sub);
+  }
+
+  function updateRoutineFields() {
+    const frequency = $('#routine-frequency').value;
+    $('#routine-weekday-field').classList.toggle('hidden', frequency !== 'weekly');
+    $('#routine-monthday-field').classList.toggle('hidden', frequency !== 'monthly');
+    $('#routine-monthday').disabled = frequency !== 'monthly';
+    $('#routine-interval-unit').textContent = { daily: '일마다', weekly: '주마다', monthly: '개월마다' }[frequency];
+  }
+
+  function openRoutineDialog(routine = null, task = null, sub = null) {
+    editingRoutineId = routine?.id || null;
+    routineContext = task ? { taskId: task.id, subId: sub?.id || null } : null;
+    $('#routine-form').reset();
+    $('#routine-dialog-title').textContent = routine ? '루틴 수정하기' : '루틴 만들기';
+    $('#routine-title').value = routine?.title || sub?.title || task?.title || '';
+    $('#routine-note').value = routine?.note || (sub ? '' : task?.note) || '';
+    $('#routine-priority').value = routine?.priority || task?.priority || 'normal';
+    window.TodoPlanner.fillCategories($('#routine-category'), routine?.categoryId || task?.categoryId || '');
+    $('#routine-frequency').value = routine?.frequency || 'weekly';
+    $('#routine-interval').value = routine?.interval || 1;
+    $('#routine-start').value = routine?.startDate || selectedDate;
+    $('#routine-end').value = routine?.endDate || '';
+    $('#routine-end').min = $('#routine-start').value;
+    $('#routine-monthday').value = routine?.monthDay || parseDate($('#routine-start').value).getDate();
+    const weekdays = routine?.weekdays || [1, 2, 3, 4, 5];
+    document.querySelectorAll('#routine-weekdays input').forEach((input) => { input.checked = weekdays.includes(Number(input.value)); });
+    $('#routine-summary').textContent = sub ? `${task.title}의 하위 할 일을 반복해요.` : routine?.subtask ? `${routine.parentTitle}의 하위 할 일을 반복해요.` : '이 할 일을 루틴으로 이어가요.';
+    $('#routine-summary').classList.toggle('hidden', !task && !routine?.subtask);
+    $('#delete-routine').classList.toggle('hidden', !routine);
+    $('#routine-edit-help').classList.toggle('hidden', !routine);
+    $('#routine-error').textContent = '';
+    updateRoutineFields();
     $('#routine-dialog').showModal();
+    $('#routine-title').focus();
+  }
+
+  function deleteRoutine(id) {
+    const routine = routines.find((item) => item.id === id);
+    if (!routine || !confirm(`“${routine.title}” 루틴을 삭제할까요? 과거 기록과 완료한 일정은 남고, 오늘 이후의 미완료 일정은 삭제돼요.`)) return;
+    tasks = tasks.filter((task) => task.routineId !== id || (task.routineDate || task.date) < iso(today) || task.done || (routine.subtask && task.subtasks.some((sub) => sub.routineId === id && sub.done)));
+    routines = routines.filter((item) => item.id !== id);
+    if (selectedRoutineId === id) selectedRoutineId = '';
+    $('#routine-dialog').close();
+    persist();
+    toast('루틴을 삭제했어요. 과거 기록은 남겨두었어요.');
   }
 
   function render() {
+    generateRoutineTasks();
+    window.TodoPlanner.prepare();
     const todays = tasks.filter((t) => t.date === iso(today));
     $('#today-count').textContent = todays.filter((t) => !t.done).length;
     $('#all-count').textContent = tasks.filter((t) => !t.done).length;
+    $('#routine-count').textContent = routines.length;
     $('#crumb-label').textContent = dateNames[view];
     $('#date-eyebrow').textContent = view === 'day' ? (selectedDate === iso(today) ? 'MY DAY' : 'YOUR DAY') : view.toUpperCase();
     $('#page-title').textContent = view === 'day' ? (selectedDate === iso(today) ? '오늘의 할 일' : fmtDate(selectedDate, { month: 'long', day: 'numeric' })) : dateNames[view];
-    $('#page-subtitle').textContent = view === 'day' ? (selectedDate === iso(today) ? '작은 한 걸음부터 시작해요.' : '이 날의 계획을 확인해요.') : view === 'upcoming' ? '다가오는 날의 계획을 살펴봐요.' : view === 'completed' ? '지금까지 해낸 일들이에요.' : '생각나는 일을 모두 담아두세요.';
+    $('#page-subtitle').textContent = view === 'day' ? (selectedDate === iso(today) ? '작은 한 걸음부터 시작해요.' : '이 날의 계획을 확인해요.') : view === 'routines' ? '반복하는 작은 습관, 달력에 쌓이는 나의 기록.' : view === 'upcoming' ? '마감이 가까운 순으로 표시해요. 마감 없는 할 일은 계획 날짜순이에요.' : view === 'completed' ? '지금까지 해낸 일들이에요.' : '생각나는 일을 모두 담아두세요.';
+    const routineView = view === 'routines';
+    const extendedView = ['overview', 'planner', 'events'].includes(view);
+    $('.summary-row').classList.toggle('hidden', routineView || extendedView);
+    $('.list-toolbar').classList.toggle('hidden', routineView || extendedView);
+    list.classList.toggle('hidden', routineView || extendedView);
+    $('#routine-list').classList.toggle('hidden', !routineView);
+    $('#new-routine').classList.toggle('hidden', routineView || ['planner', 'events'].includes(view));
+    $('#new-task').innerHTML = `<span>＋</span> ${routineView ? '새 루틴' : '새 할 일'}`;
+    $('#new-task').setAttribute('aria-label', routineView ? '새 루틴 만들기' : '새 할 일 만들기');
     const selectedItems = tasks.filter((t) => t.date === selectedDate);
     const remaining = selectedItems.filter((t) => !t.done).length;
     const done = selectedItems.filter((t) => t.done).length;
@@ -338,7 +399,29 @@
     document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.view === view));
     $('#month-label').textContent = shownMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
     $('#selected-date-label').textContent = fmtDate(selectedDate);
-    renderCalendar(); renderTaskList(); renderAgenda();
+    renderRoutineSelector(); renderCalendar(); renderTaskList(); renderAgenda(); renderRoutineList();
+    window.TodoPlanner.render();
+  }
+
+  function renderRoutineSelector() {
+    if (selectedRoutineId !== '__plans' && !routines.some((routine) => routine.id === selectedRoutineId)) selectedRoutineId = '';
+    $('#calendar-routine').innerHTML = '<option value="">전체 할 일</option><option value="__plans">주간 플랜 수행 기록</option>' + routines.map((routine) => `<option value="${escapeHTML(routine.id)}">${escapeHTML(routine.title)}</option>`).join('');
+    $('#calendar-routine').value = selectedRoutineId;
+    $('#task-calendar-legend').classList.toggle('hidden', Boolean(selectedRoutineId));
+    $('#routine-calendar-legend').classList.toggle('hidden', !selectedRoutineId);
+  }
+
+  function renderRoutineList() {
+    if (!routines.length) {
+      $('#routine-list').innerHTML = '<div class="empty-state"><div class="empty-icon">↻</div><h3>꾸준히 하고 싶은 일이 있나요?</h3><p>요일과 기간을 정하면 할 일에 자동으로 추가돼요.</p><button class="text-link" data-action="newroutine">＋ 첫 루틴 만들기</button></div>';
+      return;
+    }
+    $('#routine-list').innerHTML = routines.map((routine) => {
+      const status = schedule.occurrenceStatus(routine, iso(today), tasks, iso(today));
+      const ended = routine.endDate && routine.endDate < iso(today);
+      const label = ended ? '기간 종료' : routine.startDate > iso(today) ? '시작 예정' : { done: '오늘 완료', pending: '오늘 할 루틴', off: '오늘은 쉬는 날' }[status] || '반복 중';
+      return `<article class="routine-card"><div class="routine-card-heading"><span class="routine-icon">↻</span><div><h3>${escapeHTML(routine.title)}</h3><p>${escapeHTML(schedule.describeRoutine(routine))}</p></div><span class="routine-state ${status === 'done' ? 'done' : ''}">${label}</span></div>${routine.note ? `<p class="routine-card-note">${escapeHTML(routine.note)}</p>` : ''}<p class="routine-period">${escapeHTML(fmtDate(routine.startDate, { year: 'numeric', month: 'short', day: 'numeric' }))} — ${routine.endDate ? escapeHTML(fmtDate(routine.endDate, { year: 'numeric', month: 'short', day: 'numeric' })) : '계속 반복'}</p><div class="routine-card-actions"><button class="secondary-button" data-action="routinecalendar" data-routine="${escapeHTML(routine.id)}">달력 기록 보기</button><button class="text-link" data-action="editroutine" data-routine="${escapeHTML(routine.id)}">수정</button><button class="text-link danger-text" data-action="deleteroutine" data-routine="${escapeHTML(routine.id)}">삭제</button></div></article>`;
+    }).join('');
   }
 
   function renderTaskList() {
@@ -353,6 +436,9 @@
       const count = task.subtasks.length;
       const priority = task.priority !== 'normal' ? `<span class="priority ${task.priority}">${task.priority === 'high' ? '높음' : '낮음'}</span>` : '';
       const dateMeta = view !== 'day' ? `<span>◷ ${escapeHTML(fmtDate(task.date, { month: 'short', day: 'numeric' }))}</span>` : '';
+      const routineMeta = task.routineId && routines.some((routine) => routine.id === task.routineId) ? `<button class="routine-badge" data-action="routinecalendar" data-routine="${escapeHTML(task.routineId)}">↻ 루틴</button>` : '';
+      const categoryMeta = window.TodoPlanner.categoryBadge(task.categoryId);
+      const deadlineMeta = window.TodoDeadline.describe(task);
       const subtasks = task.subtasks.map((sub) => {
         const isEditing = editingSubtaskId === `${task.id}:${sub.id}`;
         const title = isEditing
@@ -363,7 +449,7 @@
       const subtaskInput = addingSubtaskFor === task.id
         ? `<form class="subtask-entry" data-task="${task.id}"><input id="subtask-entry" maxlength="120" placeholder="하위 주제 입력…" aria-label="하위 주제 입력" autocomplete="off"><button type="submit" aria-label="하위 주제 저장">추가</button><button type="button" data-action="cancelsub" aria-label="입력 취소">취소</button></form>`
         : `<button type="button" class="subtask-add" data-action="addsub" data-id="${task.id}">＋ 하위 주제 추가</button>`;
-      return `<article class="task-card ${task.done ? 'is-done' : ''}"><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">···</button></div></div>${task.note ? `<div class="task-meta"><span>${escapeHTML(task.note)}</span></div>` : ''}<div class="task-meta">${dateMeta}${priority}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
+      return `<article class="task-card ${task.done ? 'is-done' : ''}"><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">···</button></div></div>${task.note ? `<div class="task-meta"><span>${escapeHTML(task.note)}</span></div>` : ''}<div class="task-meta">${dateMeta}${routineMeta}${categoryMeta}${priority}${deadlineMeta ? `<span class="deadline-badge ${!task.done && window.TodoDeadline.timestamp(task) < Date.now() ? 'overdue' : ''}">${escapeHTML(deadlineMeta)}</span>` : ''}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
     }).join('');
   }
 
@@ -372,17 +458,43 @@
     const first = new Date(year, month, 1), start = new Date(year, month, 1 - first.getDay());
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'].map((d) => `<div class="weekday">${d}</div>`).join('');
     let days = '';
+    const routine = routines.find((item) => item.id === selectedRoutineId);
+    const statusNames = { done: '루틴 완료', missed: '루틴 미완료', pending: '오늘 대기', planned: '루틴 예정', off: '반복 없는 날' };
     for (let i = 0; i < 42; i++) {
       const date = new Date(start); date.setDate(start.getDate() + i);
       const key = iso(date), outside = date.getMonth() !== month;
-      const classes = ['calendar-day', outside ? 'outside' : '', key === iso(today) ? 'today' : '', key === selectedDate ? 'selected' : '', tasks.some((t) => t.date === key && !t.done) ? 'has-task' : ''].filter(Boolean).join(' ');
-      days += `<button class="${classes}" data-date="${key}" aria-label="${date.toLocaleDateString('ko-KR')}${tasks.some((t) => t.date === key) ? ', 할 일 있음' : ''}">${date.getDate()}</button>`;
+      const planHistory = selectedRoutineId === '__plans';
+      const info = window.TodoPlanner.calendarInfo(key);
+      const status = routine ? schedule.occurrenceStatus(routine, key, tasks, iso(today)) : planHistory ? info.status : '';
+      const classes = ['calendar-day', outside ? 'outside' : '', key === iso(today) ? 'today' : '', key === selectedDate ? 'selected' : '', view === 'overview' && window.TodoPlannerCore.weekStart(key) === window.TodoPlannerCore.weekStart(selectedDate) ? 'viewed-week' : '', routine || planHistory ? `routine-${status}` : tasks.some((t) => t.date === key && !t.done) || info.events ? 'has-task' : '', info.events ? 'has-event' : ''].filter(Boolean).join(' ');
+      const description = routine ? statusNames[status] : planHistory ? info.description : info.events ? '일정 있음' : tasks.some((t) => t.date === key) ? '할 일 있음' : '할 일 없음';
+      days += `<button class="${classes}" data-date="${key}" aria-pressed="${key === selectedDate}" aria-label="${date.toLocaleDateString('ko-KR')}, ${description}" title="${description}">${date.getDate()}${(routine || planHistory) && status === 'done' ? '<span class="day-status-mark">✓</span>' : (routine || planHistory) && status === 'missed' ? '<span class="day-status-mark">−</span>' : ''}</button>`;
     }
     $('#calendar-grid').innerHTML = weekdays + days;
+    if (selectedRoutineId === '__plans') window.TodoPlanner.renderCalendarHistory(selectedDate, shownMonth);
+    else renderRoutineHistory(routine);
+  }
+
+  function renderRoutineHistory(routine) {
+    $('#routine-month-stats').classList.toggle('hidden', !routine);
+    $('#routine-day-detail').classList.toggle('hidden', !routine);
+    if (!routine) return;
+    const stats = { done: 0, missed: 0, pending: 0, planned: 0 };
+    const end = new Date(shownMonth.getFullYear(), shownMonth.getMonth() + 1, 0).getDate();
+    for (let day = 1; day <= end; day++) {
+      const key = iso(new Date(shownMonth.getFullYear(), shownMonth.getMonth(), day));
+      const status = schedule.occurrenceStatus(routine, key, tasks, iso(today));
+      if (status !== 'off') stats[status]++;
+    }
+    const elapsed = stats.done + stats.missed;
+    $('#routine-month-stats').innerHTML = `<div><b>${stats.done}</b><span>완료</span></div><div><b>${stats.missed}</b><span>미완료</span></div><div><b>${elapsed ? Math.round(stats.done / elapsed * 100) : 0}%</b><span>수행률</span></div><p>선택한 달의 기록 · 오늘 대기와 예정일 제외</p>`;
+    const status = schedule.occurrenceStatus(routine, selectedDate, tasks, iso(today));
+    const labels = { done: '완료했어요', missed: '수행하지 못했어요', pending: '오늘의 루틴이 기다려요', planned: '예정된 루틴이에요', off: '루틴을 쉬는 날이에요' };
+    $('#routine-day-detail').innerHTML = `<span class="routine-detail-date">${escapeHTML(fmtDate(selectedDate))}</span><strong>${escapeHTML(routine.title)}</strong><p class="status-${status}">${labels[status]}</p>${status !== 'off' && selectedDate <= iso(today) ? `<button class="secondary-button" data-action="routinetoggle" data-routine="${escapeHTML(routine.id)}" data-occurrence="${selectedDate}">${status === 'done' ? '완료 취소하기' : '완료로 기록하기'}</button>` : ''}`;
   }
 
   function renderAgenda() {
-    const items = sortTasks(tasks.filter((t) => t.date === selectedDate));
+    const items = sortTasks(tasks.filter((t) => t.date === selectedDate && (!selectedRoutineId || selectedRoutineId === '__plans' || t.routineId === selectedRoutineId)));
     $('#agenda-title').textContent = selectedDate === iso(today) ? '오늘의 일정' : fmtDate(selectedDate, { month: 'long', day: 'numeric' });
     $('#agenda-count').textContent = items.length ? `${items.filter((t) => !t.done).length}개 남음` : '할 일이 없어요';
     $('#agenda-list').innerHTML = items.slice(0, 5).map((task) => `<div class="agenda-item ${task.done ? 'done' : ''}"><button class="agenda-check ${task.done ? 'done' : ''}" data-action="toggle" data-id="${task.id}" aria-label="${escapeHTML(task.title)} 완료">${task.done ? '✓' : ''}</button><button type="button" class="agenda-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button></div>`).join('');
@@ -395,7 +507,9 @@
     $('#task-title').value = task?.title ?? '';
     $('#task-note').value = task?.note ?? '';
     $('#task-date').value = task?.date ?? selectedDate;
+    $('#task-deadline').value = window.TodoDeadline.inputValue(task || {});
     $('#task-priority').value = task?.priority ?? 'normal';
+    window.TodoPlanner.fillCategories($('#task-category'), task?.categoryId || '');
     $('#delete-task').classList.toggle('hidden', !task);
     dialog.showModal(); setTimeout(() => $('#task-title').focus(), 50);
   }
@@ -403,9 +517,11 @@
   function saveTask(event) {
     event.preventDefault();
     const title = $('#task-title').value.trim(); if (!title) return;
-    const values = { title, note: $('#task-note').value.trim(), date: $('#task-date').value, priority: $('#task-priority').value };
+    const deadline = $('#task-deadline').value;
+    if (deadline && !Number.isFinite(new Date(deadline).getTime())) return;
+    const values = { title, note: $('#task-note').value.trim(), date: $('#task-date').value, deadline: deadline ? new Date(deadline).toISOString() : null, priority: $('#task-priority').value, categoryId: $('#task-category').value };
     let changedTask;
-    if (editingId) { changedTask = tasks.find((t) => t.id === editingId); Object.assign(changedTask, values); toast('할 일을 수정했어요.'); }
+    if (editingId) { changedTask = tasks.find((t) => t.id === editingId); if (changedTask.routineId && !changedTask.routineDate) changedTask.routineDate = changedTask.date; Object.assign(changedTask, values); toast('할 일을 수정했어요.'); }
     else { const now = Date.now(); changedTask = { id: uid(), ...values, done: false, subtasks: [], createdAt: now, updatedAt: now }; tasks.push(changedTask); toast('할 일을 저장했어요.'); }
     selectedDate = values.date; shownMonth = new Date(parseDate(values.date).getFullYear(), parseDate(values.date).getMonth(), 1);
     closeDialog(); persist(changedTask);
@@ -417,10 +533,34 @@
       const task = tasks.find((t) => t.id === target.dataset.id || t.id === target.dataset.task);
       switch (target.dataset.action) {
         case 'new': openDialog(); break;
+        case 'newroutine': openRoutineDialog(); break;
+        case 'editroutine': openRoutineDialog(routines.find((routine) => routine.id === target.dataset.routine)); break;
+        case 'deleteroutine': deleteRoutine(target.dataset.routine); break;
+        case 'routinecalendar':
+          selectedRoutineId = target.dataset.routine;
+          render();
+          $('#calendar-routine').focus();
+          $('.calendar-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          break;
+        case 'routinetoggle': {
+          const routine = routines.find((item) => item.id === target.dataset.routine);
+          const date = target.dataset.occurrence;
+          if (!routine || date > iso(today) || schedule.occurrenceStatus(routine, date, tasks, iso(today)) === 'off') break;
+          let occurrence = schedule.occurrenceTask(tasks, routine, date);
+          if (!occurrence) { occurrence = buildRoutineTask(routine, date); tasks.push(occurrence); if (!routine.occurrences.includes(date)) routine.occurrences.push(date); }
+          if (routine.subtask) {
+            let sub = occurrence.subtasks.find((item) => item.routineId === routine.id);
+            if (!sub) { sub = { id: uid(), title: routine.title, done: false, routineId: routine.id }; occurrence.subtasks.push(sub); }
+            sub.done = !sub.done;
+            occurrence.done = occurrence.subtasks.every((item) => item.done);
+          } else { occurrence.done = !occurrence.done; occurrence.subtasks.forEach((sub) => { sub.done = occurrence.done; }); }
+          persist(occurrence);
+          break;
+        }
         case 'edit': if (task) openDialog(task); break;
         case 'taskmenu': if (task) openTaskActions(task); break;
         case 'subtaskmenu': if (task) openTaskActions(task, task.subtasks.find((sub) => sub.id === target.dataset.sub)); break;
-        case 'toggle': if (task) { task.done = !task.done; persist(task); } break;
+        case 'toggle': if (task) { task.done = !task.done; task.subtasks.forEach((sub) => { sub.done = task.done; }); persist(task); } break;
         case 'addsub': if (task) { addingSubtaskFor = task.id; renderTaskList(); $('#subtask-entry')?.focus(); } break;
         case 'cancelsub': addingSubtaskFor = null; renderTaskList(); break;
         case 'canceleditsub': editingSubtaskId = null; renderTaskList(); break;
@@ -428,7 +568,7 @@
       }
     }
     const day = event.target.closest('[data-date]');
-    if (day) { selectedDate = day.dataset.date; const date = parseDate(selectedDate); shownMonth = new Date(date.getFullYear(), date.getMonth(), 1); view = 'day'; render(); }
+    if (day) { selectedDate = day.dataset.date; const date = parseDate(selectedDate); shownMonth = new Date(date.getFullYear(), date.getMonth(), 1); if (view !== 'overview') view = 'day'; render(); }
   });
   $('#task-actions-dialog').addEventListener('click', (event) => {
     const button = event.target.closest('[data-task-action]');
@@ -440,8 +580,10 @@
     if (action === 'date') {
       dateContext = { taskId: task.id, subId: sub?.id ?? null };
       $('#move-date').value = task.date;
+      $('#move-deadline').textContent = window.TodoDeadline.describe(task) || '마감이 설정되지 않은 할 일이에요.';
       $('#date-dialog').showModal();
     } else if (action === 'today') {
+      if (task.routineId && !task.routineDate) task.routineDate = task.date;
       task.date = iso(today);
       selectedDate = task.date;
       shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -471,6 +613,7 @@
     event.preventDefault();
     const task = tasks.find((item) => item.id === dateContext?.taskId);
     if (!task) return;
+    if (task.routineId && !task.routineDate) task.routineDate = task.date;
     task.date = $('#move-date').value;
     const movedDate = parseDate(task.date);
     selectedDate = task.date;
@@ -481,24 +624,38 @@
   });
   $('#routine-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    const task = tasks.find((item) => item.id === routineContext?.taskId);
+    const existing = routines.find((item) => item.id === editingRoutineId);
+    const task = routineContext ? tasks.find((item) => item.id === routineContext.taskId) : null;
     const sub = task?.subtasks.find((item) => item.id === routineContext?.subId);
-    if (!task || (routineContext.subId && !sub)) return;
+    const title = $('#routine-title').value.trim();
+    const startDate = $('#routine-start').value, endDate = $('#routine-end').value;
+    const frequency = $('#routine-frequency').value;
     const weekdays = [...document.querySelectorAll('#routine-weekdays input:checked')].map((input) => Number(input.value));
-    if (!weekdays.length) { toast('반복할 요일을 선택해 주세요.'); return; }
-    const title = sub?.title ?? task.title;
-    const parentTitle = task.title;
-    if (routines.some((routine) => routine.title === title && routine.parentTitle === parentTitle && routine.subtask === Boolean(sub))) {
-      $('#routine-dialog').close();
-      toast('이미 등록된 루틴이에요.');
-      return;
+    const error = !title ? '루틴 이름을 입력해 주세요.' : !schedule.validDate(startDate) ? '시작 날짜를 확인해 주세요.' : endDate && (!schedule.validDate(endDate) || endDate < startDate) ? '종료 날짜는 시작 날짜 이후로 설정해 주세요.' : frequency === 'weekly' && !weekdays.length ? '반복할 요일을 하나 이상 선택해 주세요.' : '';
+    $('#routine-error').textContent = error;
+    if (error) return;
+    const now = Date.now();
+    const routine = schedule.normalizeRoutine({ ...existing, id: existing?.id || uid(), type: 'routine', title, note: $('#routine-note').value.trim(), categoryId: $('#routine-category').value, priority: $('#routine-priority').value, frequency, interval: Number($('#routine-interval').value), monthDay: Number($('#routine-monthday').value), startDate, endDate, weekdays, subtask: existing?.subtask || Boolean(sub), parentTitle: existing?.parentTitle || task?.title || title, occurrences: existing?.occurrences || [], createdAt: existing?.createdAt || now, updatedAt: now });
+    if (existing) {
+      tasks = tasks.filter((item) => item.routineId !== existing.id || (item.routineDate || item.date) < iso(today) || item.done || (routine.subtask && item.subtasks.some((child) => child.routineId === routine.id && child.done)));
+      routine.occurrences = [...new Set([...existing.occurrences.filter((date) => date < iso(today)), ...tasks.filter((item) => item.routineId === routine.id).map((item) => item.routineDate || item.date)])];
+      routine.scheduleChangedOn = iso(today);
+      routine.historyDates = [...new Set([...(existing.historyDates || []), ...routine.occurrences.filter((date) => date < iso(today))])];
+      routines = routines.map((item) => item.id === routine.id ? routine : item);
+    } else {
+      routines.push(routine);
+      if (task && schedule.isScheduled(routine, task.date)) {
+        task.routineId = routine.id;
+        task.routineDate = task.date;
+        if (sub) sub.routineId = routine.id;
+        routine.occurrences.push(task.date);
+        task.updatedAt = now;
+      }
     }
-    routines.push({ id: uid(), type: 'routine', title, parentTitle, subtask: Boolean(sub), note: sub ? '' : task.note, priority: task.priority, startDate: $('#routine-start').value, weekdays, occurrences: [], createdAt: Date.now(), updatedAt: Date.now() });
+    selectedRoutineId = routine.id;
     $('#routine-dialog').close();
-    persist();
-    generateRoutineTasks();
-    render();
-    toast('루틴을 등록했어요.');
+    persist(routine);
+    toast(existing ? '루틴을 수정했어요.' : '루틴을 만들었어요. 달력에서 기록을 확인해 보세요.');
   });
   document.addEventListener('submit', (event) => {
     const editForm = event.target.closest('.subtask-edit');
@@ -537,10 +694,23 @@
   });
   document.querySelectorAll('.nav-item').forEach((button) => button.addEventListener('click', () => { view = button.dataset.view; filter = 'all'; document.querySelectorAll('.filter-tab').forEach((t) => t.classList.toggle('selected', t.dataset.filter === 'all')); render(); }));
   document.querySelectorAll('.filter-tab').forEach((button) => button.addEventListener('click', () => { filter = button.dataset.filter; document.querySelectorAll('.filter-tab').forEach((t) => t.classList.toggle('selected', t === button)); renderTaskList(); }));
-  $('#new-task').addEventListener('click', () => openDialog()); $('#agenda-add').addEventListener('click', () => openDialog());
-  $('#prev-month').addEventListener('click', () => { shownMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() - 1, 1); renderCalendar(); $('#month-label').textContent = shownMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' }); });
-  $('#next-month').addEventListener('click', () => { shownMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() + 1, 1); renderCalendar(); $('#month-label').textContent = shownMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' }); });
-  $('#go-today').addEventListener('click', () => { selectedDate = iso(today); shownMonth = new Date(today.getFullYear(), today.getMonth(), 1); view = 'day'; render(); });
+  $('#new-task').addEventListener('click', () => view === 'routines' ? openRoutineDialog() : openDialog()); $('#agenda-add').addEventListener('click', () => openDialog());
+  $('#new-routine').addEventListener('click', () => openRoutineDialog());
+  $('#routine-frequency').addEventListener('change', updateRoutineFields);
+  $('#routine-start').addEventListener('change', () => { $('#routine-end').min = $('#routine-start').value; });
+  $('#delete-routine').addEventListener('click', () => deleteRoutine(editingRoutineId));
+  $('#calendar-routine').addEventListener('change', (event) => { selectedRoutineId = event.target.value; render(); });
+  $('#prev-month').addEventListener('click', () => { shownMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() - 1, 1); render(); });
+  $('#next-month').addEventListener('click', () => { shownMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() + 1, 1); render(); });
+  function showToday() { selectedDate = iso(today); shownMonth = new Date(today.getFullYear(), today.getMonth(), 1); view = 'day'; filter = 'all'; selectedRoutineId = ''; $('#search-input').value = ''; document.querySelectorAll('.filter-tab').forEach((tab) => tab.classList.toggle('selected', tab.dataset.filter === 'all')); render(); }
+  $('#go-today').addEventListener('click', () => {
+    if (view === 'overview') {
+      selectedDate = iso(today);
+      shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      render();
+    } else showToday();
+  });
+  $('#clear-task-deadline').addEventListener('click', () => { $('#task-deadline').value = ''; });
   $('#search-input').addEventListener('input', renderTaskList);
   $('#task-form').addEventListener('submit', saveTask); $('#close-dialog').addEventListener('click', closeDialog); $('#cancel-dialog').addEventListener('click', closeDialog);
   $('#delete-task').addEventListener('click', () => { if (!editingId) return; if (confirm('이 할 일을 삭제할까요? 하위 주제도 함께 삭제돼요.')) { tasks = tasks.filter((t) => t.id !== editingId); closeDialog(); persist(); toast('할 일을 삭제했어요.'); } });
@@ -556,9 +726,29 @@
     if (event.key === 'Escape' && event.target.id === 'subtask-entry') { addingSubtaskFor = null; renderTaskList(); }
     if (event.key === 'Escape' && event.target.classList.contains('subtask-edit-input')) { editingSubtaskId = null; renderTaskList(); }
   });
+  window.TodoPlanner.init({
+    getState: () => ({ tasks, routines, records: plannerRecords, today: iso(today), selectedDate, shownMonth: iso(shownMonth), view }),
+    mutate: (fn) => { fn({ tasks, routines, records: plannerRecords }); persist(); },
+    selectDate: (date, nextView = view) => { selectedDate = date; const d = parseDate(date); shownMonth = new Date(d.getFullYear(), d.getMonth(), 1); view = nextView; render(); },
+    openTask: (date, task = null) => { selectedDate = date; openDialog(task); },
+    toast,
+  });
   generateRoutineTasks();
   render();
   updateAccountUI();
   restoreAuthCallback();
   restoreSession();
+  window.TodoChatGPT.init({ getRemaining: () => sortTasks(tasks.filter((task) => task.date === iso(today) && !task.done)) });
+  window.TodoReminders.init({
+    getRemaining: () => window.TodoDeadline.remaining(tasks),
+    showToday,
+    onTick: () => {
+      const now = new Date(); now.setHours(0, 0, 0, 0);
+      if (iso(now) === iso(today)) return;
+      const previous = iso(today);
+      today.setTime(now.getTime());
+      if (selectedDate === previous) { selectedDate = iso(today); shownMonth = new Date(today.getFullYear(), today.getMonth(), 1); }
+      render();
+    },
+  });
 })();
