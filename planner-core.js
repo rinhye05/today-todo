@@ -114,7 +114,7 @@
     for (const task of tasks.filter((item) => item.date === date)) {
       if (task.placement === 'bottom') { unplaced.push(task); continue; }
       const scheduledTime = minutes(task.routineTime);
-      const target = task.categoryId && plans.find((plan) => !plan.blocked && plan.categoryId === task.categoryId && (!Number.isFinite(scheduledTime) || (plan.start <= scheduledTime && scheduledTime < plan.end)));
+      const target = task.categoryId && plans.find((plan) => !plan.blocked && plan.categoryId === task.categoryId && (!task.planId || plan.id === task.planId) && (!Number.isFinite(scheduledTime) || (plan.start <= scheduledTime && scheduledTime < plan.end)));
       const point = points.find((item) => item.taskId === task.id);
       if (target) target.tasks.push(task);
       else if (point) standalonePoints.push(point);

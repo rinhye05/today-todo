@@ -83,3 +83,18 @@ test('routine points retain stored occurrence times and subtask completion', () 
   const [point]=core.routinePoints([routine],[task],'2026-10-12');
   assert.equal(point.time,'23:59');assert.equal(point.done,true);assert.equal(point.title,'산책');assert.equal(point.occurrenceDate,'2026-10-11');
 });
+
+test('explicit task plan choice overrides automatic placement and survives unavailable targets without moving to another plan', () => {
+  const records=[plan(),plan({id:'later',startTime:'21:00',endTime:'22:00'})];
+  const task={id:'task',date:'2026-10-12',categoryId:'fitness',planId:'later'};
+  let day=core.dayModel(records,[task],'2026-10-12');
+  assert.equal(day.plans[0].tasks.length,0);assert.deepEqual(day.plans[1].tasks.map(item=>item.id),['task']);
+  for(const modified of [{deletedFrom:'2026-10-12'},{categoryId:'other'},{weekdays:[2]}]) {
+    day=core.dayModel([records[0],{...records[1],...modified}],[task],'2026-10-12');
+    assert.deepEqual(day.unplaced.map(item=>item.id),['task']);assert.ok(day.plans.every(item=>item.tasks.length===0));
+  }
+  day=core.dayModel([...records,event({startTime:'21:00',endTime:'22:00'})],[task],'2026-10-12');
+  assert.deepEqual(day.unplaced.map(item=>item.id),['task']);
+  assert.deepEqual(core.dayModel(records,[{...task,placement:'bottom'}],'2026-10-12').unplaced.map(item=>item.id),['task']);
+  assert.equal(core.dayModel(records,[{...task,planId:null}],'2026-10-12').plans[0].tasks.length,1);
+});

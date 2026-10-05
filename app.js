@@ -560,6 +560,22 @@
     $('#agenda-list').innerHTML = items.slice(0, 5).map((task) => `<div class="agenda-item ${task.done ? 'done' : ''}"><button class="agenda-check ${task.done ? 'done' : ''}" data-action="toggle" data-id="${task.id}" aria-label="${escapeHTML(task.title)} 완료">${task.done ? '✓' : ''}</button><button type="button" class="agenda-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button></div>`).join('');
   }
 
+  function updateTaskPlanOptions(preferred = $('#task-plan').value) {
+    const date = $('#task-date').value, categoryId = $('#task-category').value;
+    const task = tasks.find((item) => item.id === editingId);
+    const time = window.TodoPlannerCore.minutes(task?.routineTime);
+    const candidates = schedule.validDate(date) && categoryId ? window.TodoPlannerCore.dayModel(plannerRecords, [], date).plans.filter((plan) => plan.categoryId === categoryId && (!Number.isFinite(time) || (plan.start <= time && time < plan.end))) : [];
+    const select = $('#task-plan');
+    select.replaceChildren(new Option('자동 선택 · 첫 수행 가능한 플랜', ''), ...candidates.map((plan) => new Option(`${plan.title} · ${plan.startTime}–${plan.endTime}${plan.blocked ? ' · 일정으로 제외' : ''}`, plan.id)));
+    if (preferred && !candidates.some((plan) => plan.id === preferred)) {
+      const plan = plannerRecords.find((item) => item.id === preferred && item.type === 'plan');
+      select.add(new Option(`${plan?.title || '지정한 플랜'} · 현재 날짜·카테고리에 맞지 않음 (목록에 표시)`, preferred));
+    }
+    select.value = preferred || '';
+    $('#task-plan-field').classList.toggle('hidden', $('#task-placement').value === 'bottom');
+    select.disabled = $('#task-placement').value === 'bottom';
+  }
+
   function openDialog(task = null) {
     editingId = task?.id ?? null;
     $('#dialog-title').textContent = task ? '할 일 수정' : '새 할 일';
@@ -571,6 +587,7 @@
     $('#task-priority').value = task?.priority ?? 'normal';
     $('#task-placement').value = task?.placement || 'auto';
     window.TodoPlanner.fillCategories($('#task-category'), task?.categoryId || '');
+    updateTaskPlanOptions(task?.planId || '');
     $('#delete-task').classList.toggle('hidden', !task);
     dialog.showModal(); setTimeout(() => $('#task-title').focus(), 50);
   }
@@ -580,7 +597,7 @@
     const title = $('#task-title').value.trim(); if (!title) return;
     const deadline = $('#task-deadline').value;
     if (deadline && !Number.isFinite(new Date(deadline).getTime())) return;
-    const values = { title, note: $('#task-note').value.trim(), date: $('#task-date').value, deadline: deadline ? new Date(deadline).toISOString() : null, priority: $('#task-priority').value, categoryId: $('#task-category').value, placement: $('#task-placement').value };
+    const values = { title, note: $('#task-note').value.trim(), date: $('#task-date').value, deadline: deadline ? new Date(deadline).toISOString() : null, priority: $('#task-priority').value, categoryId: $('#task-category').value, placement: $('#task-placement').value, planId: $('#task-plan').value || null };
     let changedTask;
     if (editingId) { changedTask = tasks.find((t) => t.id === editingId); if (changedTask.routineId && !changedTask.routineDate) changedTask.routineDate = changedTask.date; Object.assign(changedTask, values); toast('할 일을 수정했어요.'); }
     else { const now = Date.now(); changedTask = { id: uid(), ...values, done: false, subtasks: [], createdAt: now, updatedAt: now }; tasks.push(changedTask); toast('할 일을 저장했어요.'); }
@@ -810,6 +827,7 @@
     if (event.key === 'Escape') document.querySelectorAll('.day-filter-dropdown[open]').forEach((dropdown) => { dropdown.open = false; dropdown.querySelector('summary').focus(); });
   });
 
+  for (const id of ['task-date', 'task-category', 'task-placement']) $(`#${id}`).addEventListener('change', () => updateTaskPlanOptions());
   $('#task-form').addEventListener('submit', saveTask); $('#close-dialog').addEventListener('click', closeDialog); $('#cancel-dialog').addEventListener('click', closeDialog);
   $('#delete-task').addEventListener('click', () => { if (!editingId) return; if (confirm('이 할 일을 삭제할까요? 하위 주제도 함께 삭제돼요.')) { tasks = tasks.filter((t) => t.id !== editingId); closeDialog(); persist(); toast('할 일을 삭제했어요.'); } });
   dialog.addEventListener('click', (event) => { if (event.target === dialog) closeDialog(); });
