@@ -786,3 +786,12 @@ only narrow screens scroll horizontally. */
 .plan-management-list article>div:first-child {min-width:0;overflow-wrap:anywhere}
 
 .day-plan-card .plan-completion {flex-shrink:0;margin-top:3px}
+
+/* Keep the overview timetable and task list on the same weekday columns. */
+.week-connected-content {min-width:calc(45px + 7 * var(--day-min-width,118px))}
+.week-connected .week-extra-heading {margin:0;padding:10px 12px 10px 57px;border-top:1px solid #343b44;border-bottom:1px solid #343b44;background:#19202a}
+.week-connected .week-extra-heading h2 {margin:0;font-size:11px;font-weight:600}
+.week-connected .week-extras-scroll {overflow:visible;border:0;border-radius:0}
+.week-connected .week-extras {grid-template-columns:45px repeat(7,minmax(var(--day-min-width,118px),1fr));min-width:0}
+.week-connected .week-extras::before {content:'';background:#19202a}
+.week-connected .week-extra-day:first-child {border-left:1px solid var(--line)}
