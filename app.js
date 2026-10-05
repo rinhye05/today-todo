@@ -298,9 +298,6 @@
     return new Date(`${selectedDate}T${time}:00`).getTime();
   }
 
-  function sortDayTasks(items) {
-    return [...items].sort((a, b) => Number(Boolean(a.routineId)) - Number(Boolean(b.routineId)) || daySortTime(a) - daySortTime(b) || (a.createdAt || 0) - (b.createdAt || 0));
-  }
 
   function getVisibleTasks() {
     let items = tasks.filter((task) => task.type !== 'routine');
@@ -311,7 +308,7 @@
     if (query) items = items.filter((t) => t.title.toLocaleLowerCase('ko').includes(query) || t.note.toLocaleLowerCase('ko').includes(query) || t.subtasks.some((s) => s.title.toLocaleLowerCase('ko').includes(query)));
     if (filter === 'active') items = items.filter((t) => !t.done);
     if (filter === 'done') items = items.filter((t) => t.done);
-    return view === 'day' ? sortDayTasks(items) : view === 'upcoming' ? items : sortTasks(items);
+    return view === 'day' ? window.TodoPlannerCore.sortDailyItems(items, selectedDate) : view === 'upcoming' ? items : sortTasks(items);
   }
 
   function generateRoutineTasks() {

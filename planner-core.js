@@ -102,6 +102,19 @@
     });
   }
 
+  function sortDailyItems(items, date) {
+    const kind = (item) => item.type === 'plan' ? 2 : item.routineId ? 1 : 0;
+    const when = (item) => {
+      const deadline = item.deadline && Date.parse(item.deadline);
+      if (Number.isFinite(deadline)) return deadline;
+      const value = item.type === 'plan' ? item.startTime : item.routineTime;
+      if (!Number.isFinite(minutes(value))) return Infinity;
+      const base = parseDate(item.date || date).getTime();
+      return base + minutes(value) * 60000;
+    };
+    return [...items].sort((a, b) => kind(a) - kind(b) || when(a) - when(b) || (a.createdAt || 0) - (b.createdAt || 0));
+  }
+
   function dayModel(records, tasks, date, instances = null, routines = []) {
     const events = eventsOnDate(instances || eventInstances(records.filter((item) => item.type === 'event'), date, date), date);
     const plans = planInstances(records, date).map((plan) => {
@@ -120,8 +133,7 @@
       else if (point) standalonePoints.push(point);
       else unplaced.push(task);
     }
-    unplaced.sort((a, b) => Number(a.placement === 'bottom') - Number(b.placement === 'bottom'));
-    return { date, plans, events, unplaced, routinePoints: standalonePoints };
+    return { date, plans, events, unplaced: sortDailyItems(unplaced, date), routinePoints: standalonePoints };
   }
 
   function weekModel(records, tasks, date, routines = []) {
@@ -160,5 +172,5 @@
     return `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${week}주차`;
   }
 
-  return { days, addDays, weekStart, weekDates, weekLabel, minutes, time, safeColor, overlaps, planAt, planInstances, routinePoints, startsBetween, eventInstances, eventsOnDate, dayModel, weekModel, layout };
+  return { days, addDays, weekStart, weekDates, weekLabel, minutes, time, safeColor, overlaps, planAt, planInstances, routinePoints, sortDailyItems, startsBetween, eventInstances, eventsOnDate, dayModel, weekModel, layout };
 });

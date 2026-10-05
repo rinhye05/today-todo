@@ -98,3 +98,10 @@ test('explicit task plan choice overrides automatic placement and survives unava
   assert.deepEqual(core.dayModel(records,[{...task,placement:'bottom'}],'2026-10-12').unplaced.map(item=>item.id),['task']);
   assert.equal(core.dayModel(records,[{...task,planId:null}],'2026-10-12').plans[0].tasks.length,1);
 });
+
+test('daily and weekly lists sort by kind, deadline or time with unscheduled items last', () => {
+  const date='2026-10-12';
+  const items=[{id:'none',date,placement:'bottom'},{id:'late',date,deadline:'2026-10-12T18:00:00+09:00'},{id:'early',date,deadline:'2026-10-12T08:00:00+09:00',done:true,placement:'bottom'},{id:'routine-none',date,routineId:'r0'},{id:'routine-late',date,routineId:'r1',routineTime:'18:00'},{id:'routine-early',date,routineId:'r2',routineTime:'08:00'},{id:'plan-late',type:'plan',startTime:'19:00'},{id:'plan-early',type:'plan',startTime:'07:00'}];
+  assert.deepEqual(core.sortDailyItems(items,date).map(item=>item.id),['early','late','none','routine-early','routine-late','routine-none','plan-early','plan-late']);
+  assert.deepEqual(core.dayModel([],items.filter(item=>item.type!=='plan'),date).unplaced.map(item=>item.id),['early','late','none','routine-early','routine-late','routine-none']);
+});
