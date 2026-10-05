@@ -12,6 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="planner.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -19,29 +20,46 @@
         <a class="brand" href="#" aria-label="오늘, 할 일 홈"><span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 8.5h8M8 12h2.5m2.5 0h3M8 16h2.5m2.5 0H16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m7.5 12 1.2 1.2 2-2.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>오늘, 할 일<span class="brand-caption">MY PRIVATE SPACE</span></span></a>
         <div class="side-label">WORKSPACE</div>
         <nav class="side-nav" aria-label="할 일 보기">
-          <button class="nav-item active" data-view="day"><span class="nav-icon">◷</span>하루 보기<span class="nav-count" id="today-count">0</span></button>
+          <button class="nav-item active" data-view="overview"><span class="nav-icon">▦</span>전체 보기</button>
+          <button class="nav-item" data-view="day"><span class="nav-icon">◷</span>하루 보기<span class="nav-count" id="today-count">0</span></button>
           <button class="nav-item" data-view="all"><span class="nav-icon">▤</span>모든 할 일<span class="nav-count" id="all-count">0</span></button>
           <button class="nav-item" data-view="upcoming"><span class="nav-icon">↗</span>예정된 일</button>
           <button class="nav-item" data-view="completed"><span class="nav-icon">✓</span>완료한 일</button>
+          <button class="nav-item" data-view="routines"><span class="nav-icon">↻</span>나의 루틴<span class="nav-count" id="routine-count">0</span></button>
+          <button class="nav-item" data-view="planner"><span class="nav-icon">▥</span>주간 플래너</button>
+          <button class="nav-item" data-view="events"><span class="nav-icon">▣</span>일정</button>
         </nav>
-        <div class="side-bottom"><div class="privacy-icon">⌑</div><div><strong>나만의 기록</strong><p>할 일은 이 기기에 안전하게 저장돼요.</p></div></div>
+        <button class="side-bottom sidebar-settings" id="settings-action" aria-label="설정 열기"><span class="privacy-icon">⚙</span><span class="settings-label"><strong>설정</strong><small>동기화 · 알림 · GPT</small></span><span class="settings-chevron">›</span></button>
       </aside>
 
       <main class="main-area">
-        <header class="topbar"><div class="breadcrumb">내 공간 <span>/</span> <b id="crumb-label">하루 보기</b></div><div class="top-actions"><span class="saved-indicator" id="sync-indicator"><i></i><span id="sync-label">이 기기에 저장</span></span><button class="account-action" id="account-action">기기 간 동기화</button></div></header>
+        <section class="usage-panel" id="usage-panel" aria-label="GPT 남은 사용량">
+          <div class="usage-heading"><div><span class="eyebrow">GPT USAGE</span><h2>GPT 남은 사용량 <span id="usage-source">내 ChatGPT 계정</span></h2></div><div class="usage-actions"><span id="usage-updated">조회 중…</span><button class="icon-button" id="refresh-usage" aria-label="사용량 새로고침">↻</button><button class="icon-button" id="hide-usage" aria-label="GPT 사용량 숨기기" title="사용량 숨기기">×</button></div></div>
+          <div id="usage-limits" class="usage-limits"><p class="usage-message">계정 사용량을 확인하고 있어요.</p></div>
+        </section>
+        <header class="topbar"><div class="breadcrumb">내 공간 <span>/</span> <b id="crumb-label">전체 보기</b></div><div class="top-actions"><span class="saved-indicator" id="sync-indicator"><i></i><span id="sync-label">이 기기에 저장</span></span><button class="account-action" id="new-event">＋ 일정 추가</button><button class="account-action mobile-settings" id="mobile-settings-action">⚙ 설정</button></div></header>
+        <nav class="mobile-nav" aria-label="할 일 보기"><button class="nav-item active" data-view="overview">전체 보기</button><button class="nav-item" data-view="day">하루</button><button class="nav-item" data-view="all">할 일</button><button class="nav-item" data-view="upcoming">예정</button><button class="nav-item" data-view="completed">완료</button><button class="nav-item" data-view="routines">루틴</button><button class="nav-item" data-view="planner">플래너</button><button class="nav-item" data-view="events">일정</button></nav>
         <div class="content-grid">
           <section class="task-section">
-            <div class="page-heading"><div><div class="eyebrow" id="date-eyebrow">MY DAY</div><h1 id="page-title">오늘의 할 일</h1><p id="page-subtitle">작은 한 걸음부터 시작해요.</p></div><button class="primary-button" id="new-task"><span>＋</span> 새 할 일</button></div>
+            <div class="page-heading"><div><div class="eyebrow" id="date-eyebrow">MY DAY</div><h1 id="page-title">오늘의 할 일</h1><p id="page-subtitle">작은 한 걸음부터 시작해요.</p></div><div class="heading-actions"><button class="secondary-button" id="new-routine">↻ 루틴 만들기</button><button class="primary-button" id="new-task"><span>＋</span> 새 할 일</button></div></div>
             <div class="summary-row"><div class="summary-card"><span class="summary-icon">◷</span><span><b id="summary-open">0</b><small>남은 할 일</small></span></div><div class="summary-card"><span class="summary-icon muted">✓</span><span><b id="summary-done">0</b><small>완료한 일</small></span></div><div class="progress-card"><div class="progress-top"><small>오늘의 진행률</small><b id="progress-label">0%</b></div><div class="progress-track"><span id="progress-bar"></span></div></div></div>
             <div class="list-toolbar"><div class="filter-tabs" role="tablist"><button class="filter-tab selected" data-filter="all">전체</button><button class="filter-tab" data-filter="active">진행 중</button><button class="filter-tab" data-filter="done">완료</button></div><label class="search-box"><span>⌕</span><input id="search-input" type="search" placeholder="할 일 검색" aria-label="할 일 검색" /><kbd>⌘ K</kbd></label></div>
             <div id="task-list" class="task-list"></div>
+            <div id="routine-list" class="routine-list hidden"></div>
+            <section id="planner-view" class="hidden" aria-label="주간 플래너"></section>
+            <section id="events-view" class="hidden" aria-label="일정 목록"></section>
           </section>
 
           <aside class="calendar-panel">
             <div class="calendar-title"><div><div class="eyebrow">YOUR SCHEDULE</div><h2>달력</h2></div><button class="today-button" id="go-today">오늘</button></div>
+            <label class="field-label" for="calendar-routine">루틴 · 플랜 기록 보기</label><select id="calendar-routine" class="text-field"><option value="">전체 할 일</option></select>
+            <p id="calendar-week-label" class="calendar-week-label hidden"></p>
             <div class="month-control"><button id="prev-month" aria-label="이전 달">‹</button><strong id="month-label"></strong><button id="next-month" aria-label="다음 달">›</button></div>
             <div class="calendar-grid" id="calendar-grid" aria-label="월간 달력"></div>
-            <div class="calendar-legend"><span><i class="legend-dot"></i>할 일 있음</span><span id="selected-date-label"></span></div>
+            <div class="calendar-legend" id="task-calendar-legend"><span><i class="legend-dot"></i>할 일 있음</span><span id="selected-date-label"></span></div>
+            <div class="routine-legend hidden" id="routine-calendar-legend"><span><i class="done"></i>완료</span><span><i class="missed"></i>미완료</span><span><i class="pending"></i>오늘 대기</span><span><i class="planned"></i>예정</span></div>
+            <div id="routine-month-stats" class="routine-month-stats hidden"></div>
+            <div id="routine-day-detail" class="routine-day-detail hidden"></div>
             <div class="calendar-divider"></div>
             <div class="up-next-heading"><div><h3 id="agenda-title">선택한 날</h3><span id="agenda-count">할 일이 없어요</span></div><button id="agenda-add" aria-label="선택한 날짜에 할 일 추가">＋</button></div>
             <div id="agenda-list" class="agenda-list"></div>
@@ -68,6 +86,8 @@
         <label class="field-label" for="task-title">무엇을 할까요?</label><input class="text-field title-field" id="task-title" maxlength="120" placeholder="예: 프로젝트 기획안 정리하기" required />
         <label class="field-label" for="task-note">메모 <span>선택</span></label><textarea class="text-field note-field" id="task-note" rows="3" maxlength="500" placeholder="필요한 내용을 간단히 적어두세요."></textarea>
         <div class="field-pair"><div><label class="field-label" for="task-date">날짜</label><input class="text-field" id="task-date" type="date" required /></div><div><label class="field-label" for="task-priority">우선순위</label><select class="text-field" id="task-priority"><option value="normal">보통</option><option value="high">높음</option><option value="low">낮음</option></select></div></div>
+        <label class="field-label" for="task-deadline">마감 <span>선택 · 날짜와 시간</span></label><input class="text-field" id="task-deadline" type="datetime-local" /><button type="button" class="text-link deadline-clear" id="clear-task-deadline">마감 지우기</button><p class="field-help">위 날짜는 계획한 수행일, 마감은 실제로 끝내야 하는 시점이에요. 오늘 마감인 미완료 할 일은 알림 맨 위에 표시돼요.</p>
+        <label class="field-label" for="task-category">카테고리</label><div class="category-field"><select id="task-category" class="text-field"><option value="">카테고리 없음</option></select><button type="button" class="secondary-button" data-planner-action="categories">관리</button></div><p class="field-help">전체 보기에서 같은 날, 같은 카테고리의 첫 수행 가능한 플랜 안에 표시돼요.</p>
         <div class="dialog-actions"><button type="button" class="delete-button hidden" id="delete-task">삭제</button><span class="action-spacer"></span><button type="button" class="secondary-button" id="cancel-dialog">취소</button><button class="primary-button" id="save-task">저장하기</button></div>
       </form>
     </dialog>
@@ -77,13 +97,73 @@
       </div>
     </dialog>
     <dialog id="date-dialog" class="task-dialog">
-      <form id="date-form"><div class="dialog-head"><div><div class="eyebrow">CHANGE DATE</div><h2>날짜 바꾸기</h2></div><button type="button" class="icon-button" data-close-dialog="date-dialog" aria-label="닫기">×</button></div><label class="field-label" for="move-date">할 날짜</label><input class="text-field" id="move-date" type="date" required /><div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="secondary-button" data-close-dialog="date-dialog">취소</button><button class="primary-button">날짜 저장</button></div></form>
+      <form id="date-form"><div class="dialog-head"><div><div class="eyebrow">CHANGE DATE</div><h2>날짜 바꾸기</h2></div><button type="button" class="icon-button" data-close-dialog="date-dialog" aria-label="닫기">×</button></div><label class="field-label" for="move-date">할 날짜</label><input class="text-field" id="move-date" type="date" required /><p id="move-deadline" class="deadline-help"></p><div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="secondary-button" data-close-dialog="date-dialog">취소</button><button class="primary-button">날짜 저장</button></div></form>
     </dialog>
     <dialog id="routine-dialog" class="task-dialog">
-      <form id="routine-form"><div class="dialog-head"><div><div class="eyebrow">WEEKLY ROUTINE</div><h2>루틴 등록하기</h2></div><button type="button" class="icon-button" data-close-dialog="routine-dialog" aria-label="닫기">×</button></div><p class="routine-summary" id="routine-summary"></p><label class="field-label" for="routine-start">시작 날짜</label><input class="text-field" id="routine-start" type="date" required /><div class="field-label">반복 요일</div><div class="weekday-picker" id="routine-weekdays"><label><input type="checkbox" value="1"><span>월</span></label><label><input type="checkbox" value="2"><span>화</span></label><label><input type="checkbox" value="3"><span>수</span></label><label><input type="checkbox" value="4"><span>목</span></label><label><input type="checkbox" value="5"><span>금</span></label><label><input type="checkbox" value="6"><span>토</span></label><label><input type="checkbox" value="0"><span>일</span></label></div><div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="secondary-button" data-close-dialog="routine-dialog">취소</button><button class="primary-button">루틴 등록</button></div></form>
+      <form id="routine-form">
+        <div class="dialog-head"><div><div class="eyebrow">MY ROUTINE</div><h2 id="routine-dialog-title">루틴 만들기</h2></div><button type="button" class="icon-button" data-close-dialog="routine-dialog" aria-label="닫기">×</button></div>
+        <p class="routine-summary hidden" id="routine-summary"></p>
+        <label class="field-label" for="routine-title">어떤 습관을 만들까요?</label><input class="text-field title-field" id="routine-title" maxlength="120" placeholder="예: 30분 산책하기" required />
+        <label class="field-label" for="routine-note">메모 <span>선택</span></label><textarea class="text-field note-field" id="routine-note" rows="2" maxlength="500" placeholder="꾸준히 이어갈 나만의 계획"></textarea>
+        <div class="field-pair"><div><label class="field-label" for="routine-frequency">반복 주기</label><select class="text-field" id="routine-frequency"><option value="daily">일 단위</option><option value="weekly" selected>주 단위</option><option value="monthly">월 단위</option></select></div><div><label class="field-label" for="routine-interval">반복 간격</label><div class="interval-field"><input class="text-field" id="routine-interval" type="number" min="1" max="365" value="1" required /><span id="routine-interval-unit">주마다</span></div></div></div>
+        <div id="routine-weekday-field"><div class="field-label" id="weekday-label">반복 요일</div><div class="weekday-picker" id="routine-weekdays" role="group" aria-labelledby="weekday-label"><label><input type="checkbox" value="1"><span>월</span></label><label><input type="checkbox" value="2"><span>화</span></label><label><input type="checkbox" value="3"><span>수</span></label><label><input type="checkbox" value="4"><span>목</span></label><label><input type="checkbox" value="5"><span>금</span></label><label><input type="checkbox" value="6"><span>토</span></label><label><input type="checkbox" value="0"><span>일</span></label></div></div>
+        <div id="routine-monthday-field" class="hidden"><label class="field-label" for="routine-monthday">반복 날짜</label><input class="text-field" id="routine-monthday" type="number" min="1" max="31" value="1" required /><p class="field-help">해당 날짜가 없는 달에는 마지막 날에 반복해요.</p></div>
+        <div class="field-pair"><div><label class="field-label" for="routine-start">시작 날짜</label><input class="text-field" id="routine-start" type="date" required /></div><div><label class="field-label" for="routine-end">종료 날짜 <span>선택</span></label><input class="text-field" id="routine-end" type="date" /></div></div>
+        <p class="field-help">종료 날짜를 비워두면 계속 반복해요. 주 단위는 시작일이 속한 월요일 기준으로 계산해요.</p>
+        <label class="field-label" for="routine-priority">우선순위</label><select class="text-field" id="routine-priority"><option value="normal">보통</option><option value="high">높음</option><option value="low">낮음</option></select>
+        <label class="field-label" for="routine-category">카테고리</label><select id="routine-category" class="text-field"><option value="">카테고리 없음</option></select>
+        <p id="routine-error" class="form-error" role="alert"></p><p id="routine-edit-help" class="field-help hidden">변경한 설정은 오늘 이후의 미완료 일정에 적용돼요. 과거 기록과 완료한 일정은 보존해요.</p>
+        <div class="dialog-actions"><button type="button" class="delete-button hidden" id="delete-routine">삭제</button><span class="action-spacer"></span><button type="button" class="secondary-button" data-close-dialog="routine-dialog">취소</button><button class="primary-button">저장하기</button></div>
+      </form>
     </dialog>
+    <dialog id="notification-dialog" class="task-dialog">
+      <form id="notification-form">
+        <div class="dialog-head"><div><div class="eyebrow">DAILY REMINDER</div><h2>오늘의 할 일 알림</h2></div><button type="button" class="icon-button" data-close-dialog="notification-dialog" aria-label="닫기">×</button></div>
+        <p class="account-copy">매일 원하는 시간에 오늘 남은 할 일과 루틴을 알려드려요.</p>
+        <label class="notification-toggle"><span>매일 알림 받기</span><input id="notification-enabled" type="checkbox" role="switch" /></label>
+        <label class="field-label" for="notification-time">알림 시간</label><input class="text-field" id="notification-time" type="time" value="20:00" required />
+        <p class="field-help">이 기기의 시간대를 사용해요. 남은 일이 없는 날은 알림을 생략해요.</p>
+        <div class="notification-permission"><div><strong>시스템 알림</strong><p id="notification-permission-status"></p></div><button type="button" class="secondary-button" id="request-notification-permission">알림 허용</button></div>
+        <p class="field-help">앱이 열려 있을 때 알림을 보내요. 탭이 쉬거나 앱을 닫아 시간이 지나면 다시 열 때 그날의 알림을 보여드려요. 알림 설정은 이 브라우저에 저장돼요.</p>
+        <p id="notification-preview" class="routine-summary"></p>
+        <div class="dialog-actions"><button type="button" class="secondary-button" id="test-notification">테스트 알림</button><span class="action-spacer"></span><button class="primary-button">저장하기</button></div>
+      </form>
+    </dialog>
+    <dialog id="settings-dialog" class="task-dialog">
+      <div class="dialog-head"><div><div class="eyebrow">PREFERENCES</div><h2>설정</h2></div><button type="button" class="icon-button" id="close-settings" aria-label="닫기">×</button></div>
+      <div class="settings-menu"><button id="account-action" class="settings-item">기기 간 동기화</button><button id="notification-action" class="settings-item">알림 설정</button><button id="chatgpt-action" class="settings-item">GPT 설정 · 도우미</button><button class="settings-item" data-planner-action="categories">카테고리 관리</button></div>
+      <label class="notification-toggle"><span>GPT 사용량 표시</span><input id="show-gpt-usage" type="checkbox" role="switch" checked /></label>
+      <p class="field-help">화면 맨 위의 사용량 영역을 표시해요. 끄면 자동 조회도 멈춰요. 이 브라우저에 설정이 저장돼요.</p>
+      <div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="primary-button" id="done-settings">완료</button></div>
+    </dialog>
+    <dialog id="chatgpt-dialog" class="task-dialog chatgpt-dialog">
+      <div class="dialog-head"><div><div class="eyebrow">YOUR CHATGPT PLAN</div><h2>GPT 도우미</h2></div><button type="button" class="icon-button" id="close-chatgpt" aria-label="닫기">×</button></div>
+      <div class="chatgpt-connection"><div><strong id="chatgpt-account">ChatGPT 계정 연결</strong><p id="chatgpt-connection-status" role="status">연결 상태를 확인하고 있어요.</p></div><button type="button" class="secondary-button hidden" id="chatgpt-disconnect">연결 해제</button></div>
+      <button type="button" class="chatgpt-signin" id="chatgpt-connect" disabled>Continue with ChatGPT</button>
+      <p class="field-help">연결한 계정의 ChatGPT 구독으로 답변을 받아요. 앱 연결과 사용 한도는 <a href="https://chatgpt.com/settings/usage" class="chatgpt-usage-link" target="_blank" rel="noopener noreferrer">ChatGPT 설정 → 사용량</a>에서 관리할 수 있어요.</p>
+      <div class="chatgpt-welcome hidden" id="chatgpt-welcome"><p>이 도우미의 질문은 연결한 ChatGPT 구독 또는 크레딧을 사용해요.</p><button type="button" class="secondary-button" id="chatgpt-welcome-done">확인했어요</button></div>
+      <form id="chatgpt-form">
+        <label class="field-label" for="chatgpt-model">사용할 모델</label><div class="chatgpt-model-row"><select id="chatgpt-model" class="text-field" disabled><option value="">계정을 연결하면 선택할 수 있어요</option></select><button type="button" class="icon-button" id="refresh-chatgpt-models" aria-label="모델 목록 새로고침" disabled>↻</button></div>
+        <label class="field-label" for="chatgpt-prompt">어떤 도움이 필요한가요?</label><textarea id="chatgpt-prompt" class="text-field" rows="3" maxlength="4000" placeholder="예: 오늘 할 일을 어떤 순서로 진행하면 좋을까?" required></textarea>
+        <div class="chatgpt-suggestions"><button type="button" data-gpt-prompt="오늘 할 일을 어떤 순서로 진행하면 좋을까?">진행 순서 고민하기</button><button type="button" data-gpt-prompt="꾸준히 이어갈 수 있는 운동 루틴을 추천해줘.">루틴 아이디어</button></div>
+        <label class="chatgpt-context"><input id="chatgpt-include-tasks" type="checkbox" /><span>오늘 남은 할 일도 함께 보내기</span></label>
+        <details id="chatgpt-context-preview" class="hidden"><summary>함께 보낼 목록 확인</summary><pre id="chatgpt-tasks-preview"></pre></details>
+        <p class="field-help">체크하면 오늘 미완료 항목의 제목·메모·우선순위·하위 할 일을 전송해요. 답변은 조언으로 표시되며 할 일은 직접 변경하지 않아요.</p>
+        <p class="form-error" id="chatgpt-error" role="alert"></p>
+        <div class="dialog-actions"><span id="chatgpt-plan-label" class="field-help"></span><span class="action-spacer"></span><button type="button" class="secondary-button hidden" id="chatgpt-stop">중지</button><button class="primary-button" id="chatgpt-send" disabled>질문하기</button></div>
+      </form>
+      <section id="chatgpt-answer-panel" class="chatgpt-answer-panel hidden" aria-label="GPT 답변"><div class="chatgpt-answer-head"><strong>답변</strong><span id="chatgpt-answer-status" role="status"></span><button type="button" class="icon-button" id="chatgpt-copy" aria-label="답변 복사" disabled>⧉</button></div><div id="chatgpt-answer" class="chatgpt-answer"></div></section>
+    </dialog>
+    <aside id="reminder-banner" class="reminder-banner hidden" aria-label="오늘의 할 일 알림"><div class="reminder-heading"><div><div class="eyebrow">DAILY REMINDER</div><h2 id="reminder-title" role="status"></h2></div><button class="icon-button" id="dismiss-reminder" aria-label="알림 닫기">×</button></div><ul id="reminder-list"></ul><button class="primary-button" id="reminder-show-today">오늘 할 일 보기</button></aside>
     <div id="toast" class="toast" role="status"></div>
     <script src="sync-config.js"></script>
+    <script src="routine-core.js"></script>
+    <script src="deadline-core.js"></script>
+    <script src="planner-core.js"></script>
+    <script src="planner.js"></script>
+    <script src="usage.js"></script>
+    <script src="chatgpt-ui.js"></script>
+    <script src="reminders.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
