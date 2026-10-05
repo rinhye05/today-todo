@@ -88,6 +88,8 @@
   }
 
   function planCheck(plan, date, template = false) {
+    const settings = state().records.find((item) => item.type === 'plan' && item.id === plan.id);
+    if (settings?.showInCalendar !== true) return '';
     return `<input class="plan-completion" type="checkbox" data-planner-action="plan-check" data-id="${esc(plan.id)}" data-day="${date}" ${plan.done ? 'checked' : ''} ${template || plan.blocked || date > state().today ? 'disabled' : ''} aria-label="${esc(plan.title)} ${date} 플랜 완료">`;
   }
 
