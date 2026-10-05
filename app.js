@@ -428,9 +428,9 @@
   }
 
   function renderRoutineSelector() {
-    const plans = plannerRecords.filter((item) => item.type === 'plan');
-    if (selectedRoutineId !== '__plans' && !routines.some((routine) => routine.id === selectedRoutineId) && !plans.some((plan) => `plan:${plan.id}` === selectedRoutineId)) selectedRoutineId = '';
-    $('#calendar-routine').innerHTML = '<option value="">전체 할 일</option><option value="__plans">주간 플랜 전체 기록</option><optgroup label="플랜별 기록">' + plans.map((plan) => `<option value="plan:${escapeHTML(plan.id)}">${escapeHTML(plan.title)}${plan.deletedFrom ? ' (삭제된 플랜)' : ''}</option>`).join('') + '</optgroup><optgroup label="루틴별 기록">' + routines.map((routine) => `<option value="${escapeHTML(routine.id)}">${escapeHTML(routine.title)}</option>`).join('') + '</optgroup>';
+    const plans = plannerRecords.filter((item) => item.type === 'plan' && item.showInCalendar === true);
+    if (!routines.some((routine) => routine.id === selectedRoutineId) && !plans.some((plan) => `plan:${plan.id}` === selectedRoutineId)) selectedRoutineId = '';
+    $('#calendar-routine').innerHTML = '<option value="">전체 할 일</option><optgroup label="플랜별 기록">' + plans.map((plan) => `<option value="plan:${escapeHTML(plan.id)}">${escapeHTML(plan.title)}${plan.deletedFrom ? ' (삭제된 플랜)' : ''}</option>`).join('') + '</optgroup><optgroup label="루틴별 기록">' + routines.map((routine) => `<option value="${escapeHTML(routine.id)}">${escapeHTML(routine.title)}</option>`).join('') + '</optgroup>';
     $('#calendar-routine').value = selectedRoutineId;
     $('#task-calendar-legend').classList.toggle('hidden', Boolean(selectedRoutineId));
     $('#routine-calendar-legend').classList.toggle('hidden', !selectedRoutineId);
@@ -773,7 +773,6 @@
     mutate: (fn) => { fn({ tasks, routines, records: plannerRecords }); persist(); },
     selectDate: (date, nextView = view) => { selectedDate = date; const d = parseDate(date); shownMonth = new Date(d.getFullYear(), d.getMonth(), 1); view = nextView; render(); },
     openTask: (date, task = null) => { selectedDate = date; openDialog(task); },
-    selectPlan: (id) => { selectedRoutineId = `plan:${id}`; render(); $('#calendar-routine').focus(); $('.calendar-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); },
     toast,
   });
   generateRoutineTasks();

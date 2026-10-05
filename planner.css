@@ -783,5 +783,4 @@ only narrow screens scroll horizontally. */
 .routine-time-meta {color:#a6c8e8}
 .week-grid {grid-template-columns:45px repeat(7,minmax(var(--day-min-width,118px),1fr));min-width:calc(45px + 7 * var(--day-min-width,118px))}
 .plan-record-actions {display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-#view-plan-history {margin-top:14px;color:#a6c8e8}
 .plan-management-list article>div:first-child {min-width:0;overflow-wrap:anywhere}

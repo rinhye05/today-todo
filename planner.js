@@ -35,7 +35,7 @@
         <p class="field-help">종료 시간 00:00은 그날의 자정을 뜻해요.</p>
         <label class="field-label" for="plan-start-date">적용 시작일</label><input class="text-field" type="date" id="plan-start-date" required>
         <label class="field-label" for="plan-note">메모</label><textarea class="text-field auto-grow-field" id="plan-note" maxlength="500" rows="2"></textarea>
-        <p class="field-help" id="plan-edit-help">한 번 설정하면 매주 반복해요. 완료 기록은 날짜마다 따로 저장돼요.</p><p class="form-error" id="plan-error" role="alert"></p><button type="button" id="view-plan-history" class="secondary-button hidden">달력에서 플랜 기록 보기</button>${actions('plan-dialog', 'delete-plan')}
+        <p class="field-help" id="plan-edit-help">한 번 설정하면 매주 반복해요. 완료 기록은 날짜마다 따로 저장돼요.</p><p class="form-error" id="plan-error" role="alert"></p><label class="notification-toggle"><span>달력에서 플랜 기록 보기</span><input type="checkbox" id="view-plan-history" role="switch"></label><p class="field-help">켜 둔 플랜만 달력의 기록 선택 메뉴에 표시돼요. 꺼도 완료 기록은 유지돼요.</p>${actions('plan-dialog', 'delete-plan')}
       </form></dialog>
       <dialog id="event-dialog" class="task-dialog planner-dialog"><form id="event-form">
         <div class="dialog-head"><div><div class="eyebrow">CALENDAR EVENT</div><h2 id="event-dialog-title">일정 추가</h2></div>${close('event-dialog')}</div>
@@ -200,7 +200,7 @@
     const toolbar = `<div class="planner-toolbar"><div><h2>${template ? '평상시의 일주일' : core.weekLabel(selectedDate)}</h2><p>${template ? '특별 일정이 없는 날의 기본 시간표예요. 빈 시간을 클릭해서 플랜을 추가할 수 있어요.' : range}</p></div><div class="planner-tools">${!template ? `<button class="icon-button" data-planner-action="prev-week" aria-label="이전 주">‹</button><button class="secondary-button" data-planner-action="this-week">이번 주</button><button class="icon-button" data-planner-action="next-week" aria-label="다음 주">›</button><input type="date" id="week-jump-date" value="${selectedDate}" aria-label="확인할 주의 날짜">` : ''}<button class="secondary-button" data-planner-action="new-plan">＋ 플랜 추가</button><button class="secondary-button" data-planner-action="categories">카테고리</button></div></div>`;
     const stats = !template ? `<div class="week-summary"><span><i class="summary-dot"></i>플랜 완료 <b>${eligible.filter((item) => item.done).length}/${eligible.length}</b></span><span>할 일 완료 <b>${weekTasks.filter((item) => item.done).length}/${weekTasks.length}</b></span><span>일정으로 제외 <b>${plans.filter((item) => item.blocked).length}</b></span><span class="week-summary-help">플랜 체크와 할 일 체크는 각각 기록해요.</span></div>` : `<p class="field-help">이 시간표는 다음 완전한 주를 기준으로 보여줘요. 실제 주간 기록과 특별 일정은 전체 보기에서 확인하세요.</p>`;
     const legend = `<div class="planner-category-legend">${categories().map((item) => badge(item.id)).join('')}<span>▣ 특별 일정</span></div>`;
-    const bottom = template ? `<div class="plan-management-list">${records.filter((item) => item.type === 'plan' && !item.deletedFrom).map((plan) => `<article><div><strong>${esc(plan.title)}</strong><p>${plan.dayTimes ? plan.weekdays.map((day) => `${core.days[day]} ${esc(plan.dayTimes[day]?.startTime || plan.startTime)}–${esc(plan.dayTimes[day]?.endTime || plan.endTime)}`).join(' · ') : `${plan.weekdays.map((day) => core.days[day]).join('·')} · ${esc(plan.startTime)}–${esc(plan.endTime)}`} ${badge(plan.categoryId)}</p></div><div class="plan-record-actions"><button class="secondary-button" data-planner-action="plan-history" data-id="${esc(plan.id)}">달력에서 플랜 기록 보기</button><button class="secondary-button" data-planner-action="edit-plan" data-id="${esc(plan.id)}">수정</button></div></article>`).join('') || '<p class="planner-empty">플랜을 추가하면 매주 사용할 시간표가 만들어져요.</p>'}</div>` : `<div class="week-extra-heading"><h2>이번 주 할 일과 일정</h2><p>카테고리가 연결된 할 일은 위 시간표 안에, 나머지 할 일은 아래에 표시돼요.</p></div><div class="week-extras-scroll"><div class="week-extras">${model.map((day, index) => `<section class="week-extra-day" data-day="${day.date}"><div class="week-extra-title"><strong class="weekday-${index}">${core.days[index]}</strong><span>${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8))}</span><button class="icon-button" data-planner-action="new-task-day" data-day="${day.date}" aria-label="${day.date} 할 일 추가">＋</button></div>${day.events.map((event) => `<button class="day-event" data-planner-action="edit-event" data-id="${esc(event.id)}" style="--category-color:${color(event.categoryId)}"><b>▣ ${esc(event.title)}</b><small>${event.allDay ? '종일' : `${core.time(event.start)}–${core.time(event.end)}`}</small></button>`).join('')}${day.plans.some((plan) => plan.tasks.length) ? `<p class="placed-count">시간표 안에 할 일 ${day.plans.reduce((count, plan) => count + plan.tasks.length, 0)}개</p>` : ''}${day.unplaced.map((task) => `<div class="unplaced-task">${badge(task.categoryId)}${taskRow(task)}</div>`).join('') || '<p class="planner-empty">추가 할 일이 없어요.</p>'}</section>`).join('')}</div></div>`;
+    const bottom = template ? `<div class="plan-management-list">${records.filter((item) => item.type === 'plan' && !item.deletedFrom).map((plan) => `<article><div><strong>${esc(plan.title)}</strong><p>${plan.dayTimes ? plan.weekdays.map((day) => `${core.days[day]} ${esc(plan.dayTimes[day]?.startTime || plan.startTime)}–${esc(plan.dayTimes[day]?.endTime || plan.endTime)}`).join(' · ') : `${plan.weekdays.map((day) => core.days[day]).join('·')} · ${esc(plan.startTime)}–${esc(plan.endTime)}`} ${badge(plan.categoryId)}</p></div><div class="plan-record-actions"><label class="notification-toggle"><span>달력에서 플랜 기록 보기</span><input type="checkbox" role="switch" data-planner-action="toggle-plan-history" data-id="${esc(plan.id)}" ${plan.showInCalendar === true ? 'checked' : ''}></label><button class="secondary-button" data-planner-action="edit-plan" data-id="${esc(plan.id)}">수정</button></div></article>`).join('') || '<p class="planner-empty">플랜을 추가하면 매주 사용할 시간표가 만들어져요.</p>'}</div>` : `<div class="week-extra-heading"><h2>이번 주 할 일과 일정</h2><p>카테고리가 연결된 할 일은 위 시간표 안에, 나머지 할 일은 아래에 표시돼요.</p></div><div class="week-extras-scroll"><div class="week-extras">${model.map((day, index) => `<section class="week-extra-day" data-day="${day.date}"><div class="week-extra-title"><strong class="weekday-${index}">${core.days[index]}</strong><span>${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8))}</span><button class="icon-button" data-planner-action="new-task-day" data-day="${day.date}" aria-label="${day.date} 할 일 추가">＋</button></div>${day.events.map((event) => `<button class="day-event" data-planner-action="edit-event" data-id="${esc(event.id)}" style="--category-color:${color(event.categoryId)}"><b>▣ ${esc(event.title)}</b><small>${event.allDay ? '종일' : `${core.time(event.start)}–${core.time(event.end)}`}</small></button>`).join('')}${day.plans.some((plan) => plan.tasks.length) ? `<p class="placed-count">시간표 안에 할 일 ${day.plans.reduce((count, plan) => count + plan.tasks.length, 0)}개</p>` : ''}${day.unplaced.map((task) => `<div class="unplaced-task">${badge(task.categoryId)}${taskRow(task)}</div>`).join('') || '<p class="planner-empty">추가 할 일이 없어요.</p>'}</section>`).join('')}</div></div>`;
     const oldScroll = $('#planner-scroll');
     const scroll = oldScroll ? { top: oldScroll.scrollTop, left: oldScroll.scrollLeft } : null;
     $('#planner-view').innerHTML = toolbar + stats + legend + grid(model, template) + bottom;
@@ -309,7 +309,7 @@
     $('#plan-note').value = plan?.note || '';
     $('#plan-edit-help').textContent = plan ? '변경은 적용 시작일 이후에 반영돼요. 이전 시간표와 완료 기록은 유지돼요.' : '한 번 설정하면 매주 반복해요. 완료 기록은 날짜마다 따로 저장돼요.';
     $('#delete-plan').classList.toggle('hidden', !plan);
-    $('#view-plan-history').classList.toggle('hidden', !plan);
+    $('#view-plan-history').checked = plan?.showInCalendar === true;
     show('plan-dialog');
     resizePlanFields();
   }
@@ -322,7 +322,7 @@
     const shared = custom ? dayTimes[days[0]] : readTime($('#plan-start-time').value, $('#plan-end-time').value);
     const validTimes = shared && Object.values(dayTimes || { shared }).every((value) => Number.isFinite(core.minutes(value.startTime)) && core.minutes(value.endTime) > core.minutes(value.startTime));
     if (!title || !days.length || !schedule.validDate(date) || !validTimes || (editingPlan && date < state().today)) { $('#plan-error').textContent = '이름, 요일, 적용일을 확인하고 각 요일의 종료 시간을 시작 이후로 설정해 주세요.'; return; }
-    const values = { title, categoryId: $('#plan-category').value, weekdays: days, ...shared, dayTimes, startDate: date, note: $('#plan-note').value.trim(), ...stamp() };
+    const values = { title, showInCalendar: $('#view-plan-history').checked, categoryId: $('#plan-category').value, weekdays: days, ...shared, dayTimes, startDate: date, note: $('#plan-note').value.trim(), ...stamp() };
     const id = editingPlan?.id;
     api.mutate(({ records }) => {
       const plan = records.find((item) => item.id === id);
@@ -404,12 +404,6 @@
   }
   function bindForms() {
     $('#plan-form').addEventListener('submit', savePlan);
-    $('#view-plan-history').addEventListener('click', () => {
-      if (!editingPlan) return;
-      const id = editingPlan.id;
-      $('#plan-dialog').close();
-      api.selectPlan(id);
-    });
     $('#plan-form').addEventListener('input', resizePlanFields);
     $('#plan-form').addEventListener('change', (event) => {
       if (['plan-start-time', 'plan-end-time'].includes(event.target.id)) {
@@ -477,7 +471,7 @@
         }
         case 'new-plan': openPlan(); break;
         case 'edit-plan': openPlan(id); break;
-        case 'plan-history': api.selectPlan(id); break;
+        case 'toggle-plan-history': api.mutate(({ records }) => Object.assign(records.find((item) => item.id === id && item.type === 'plan'), { showInCalendar: event.target.checked, ...stamp() })); break;
         case 'new-plan-at': {
           const offset = event.clientY - button.getBoundingClientRect().top;
           const offsets = button.dataset.offsets.split(',').map(Number);
