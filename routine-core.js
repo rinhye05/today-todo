@@ -11,6 +11,9 @@
   const monday = (date) => dayNumber(date) - (date.getDay() + 6) % 7;
 
   function normalizeRoutine(record) {
+    const validTime = (value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value));
+    const time = validTime(record.time) ? record.time : '';
+    const dayTimes = record.dayTimes ? Object.fromEntries(Object.entries(record.dayTimes).filter(([day, value]) => /^[0-6]$/.test(day) && (value === '' || validTime(value)))) : null;
     return {
       ...record,
       frequency: ['daily', 'weekly', 'monthly'].includes(record.frequency) ? record.frequency : 'weekly',
@@ -21,7 +24,14 @@
       occurrences: Array.isArray(record.occurrences) ? record.occurrences : [],
       note: record.note || '',
       priority: record.priority || 'normal',
+      placement: record.placement === 'bottom' ? 'bottom' : 'auto',
+      time, dayTimes,
+      showInPlanner: record.showInPlanner === true && [time, ...Object.values(dayTimes || {})].some(validTime),
     };
+  }
+
+  function routineTimeOn(routine, date) {
+    return routine.dayTimes?.[parseDate(date).getDay()] ?? routine.time ?? '';
   }
 
   function isScheduled(routine, value) {
@@ -70,5 +80,5 @@
     return key === lastKey ? null : key;
   }
 
-  return { iso, parseDate, validDate, normalizeRoutine, isScheduled, occurrenceTask, occurrenceStatus, describeRoutine, reminderKey };
+  return { iso, parseDate, validDate, normalizeRoutine, routineTimeOn, isScheduled, occurrenceTask, occurrenceStatus, describeRoutine, reminderKey };
 });

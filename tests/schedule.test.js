@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeRoutine, isScheduled, occurrenceStatus, reminderKey } = require('../routine-core');
+const { normalizeRoutine, routineTimeOn, isScheduled, occurrenceStatus, reminderKey } = require('../routine-core');
 const routine = (values = {}) => normalizeRoutine({ id: 'walk', startDate: '2026-10-05', weekdays: [1, 3, 5], ...values });
 
 test('weekly intervals use calendar weeks and include both period boundaries', () => {
@@ -77,4 +77,12 @@ test('reminders fire once per day and time, including missed times after reopeni
   assert.equal(reminderKey(settings, new Date(2026, 9, 5, 23, 30), '2026-10-04@20:00'), '2026-10-05@20:00');
   assert.equal(reminderKey({ ...settings, enabled: false }, new Date(2026, 9, 5, 23, 30)), null);
   assert.equal(reminderKey({ ...settings, time: '25:00' }, new Date()), null);
+});
+
+test('routine times are optional, may differ by weekday, and empty overrides stay untimed', () => {
+  const old=normalizeRoutine({id:'old',startDate:'2026-10-01'});
+  assert.equal(old.time,'');assert.equal(old.showInPlanner,false);
+  const custom=normalizeRoutine({id:'timed',startDate:'2026-10-01',time:'20:00',dayTimes:{1:'09:00',3:'',5:'22:15',9:'12:00'},showInPlanner:true});
+  assert.equal(routineTimeOn(custom,'2026-10-12'),'09:00');assert.equal(routineTimeOn(custom,'2026-10-14'),'');assert.equal(routineTimeOn(custom,'2026-10-16'),'22:15');assert.equal(custom.showInPlanner,true);assert.equal(custom.dayTimes[9],undefined);
+  assert.equal(normalizeRoutine({time:'25:00',showInPlanner:true}).showInPlanner,false);
 });

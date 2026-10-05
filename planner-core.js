@@ -19,7 +19,7 @@
     const version = (plan.versions || []).find((item) => date >= item.startDate && date <= item.until);
     const result = version ? { ...version, id: plan.id } : plan;
     if (!validDate(result.startDate) || date < result.startDate || (result.endDate && date > result.endDate) || !result.weekdays?.includes(parseDate(date).getDay())) return null;
-    return result;
+    return { ...result, ...(result.dayTimes?.[parseDate(date).getDay()] || {}) };
   }
 
   function planInstances(records, date) {
@@ -90,24 +90,44 @@
     return instances.filter((event) => overlaps(event, { start: base, end: base + 1440 })).map((event) => ({ ...event, date, start: Math.max(0, event.start - base), end: Math.min(1440, event.end - base) }));
   }
 
-  function dayModel(records, tasks, date, instances = null) {
+  function routinePoints(routines, tasks, date) {
+    return tasks.filter((task) => task.date === date).flatMap((task) => {
+      const routine = routines.find((item) => item.id === task.routineId);
+      if (!routine?.showInPlanner || task.placement === 'bottom') return [];
+      const value = task.routineTime ?? schedule.routineTimeOn(routine, task.routineDate || date);
+      const start = minutes(value);
+      if (!Number.isFinite(start) || start >= 1440) return [];
+      const sub = routine.subtask ? task.subtasks?.find((item) => item.routineId === routine.id) : null;
+      return [{ id: `point-${task.id}`, routineId: routine.id, taskId: task.id, occurrenceDate: task.routineDate || date, title: sub?.title || task.title, categoryId: task.categoryId || routine.categoryId || '', time: value, start, end: Math.min(1440, start + 15), done: routine.subtask ? Boolean(sub?.done) : Boolean(task.done) }];
+    });
+  }
+
+  function dayModel(records, tasks, date, instances = null, routines = []) {
     const events = eventsOnDate(instances || eventInstances(records.filter((item) => item.type === 'event'), date, date), date);
     const plans = planInstances(records, date).map((plan) => {
       const conflicts = events.filter((event) => overlaps(plan, event));
       return { ...plan, conflicts, blocked: !plan.done && conflicts.some((event) => !event.allowPlan), tasks: [] };
     });
     const unplaced = [];
+    const points = routinePoints(routines, tasks, date);
+    const standalonePoints = [];
     for (const task of tasks.filter((item) => item.date === date)) {
-      const target = task.categoryId && plans.find((plan) => !plan.blocked && plan.categoryId === task.categoryId);
-      if (target) target.tasks.push(task); else unplaced.push(task);
+      if (task.placement === 'bottom') { unplaced.push(task); continue; }
+      const scheduledTime = minutes(task.routineTime);
+      const target = task.categoryId && plans.find((plan) => !plan.blocked && plan.categoryId === task.categoryId && (!Number.isFinite(scheduledTime) || (plan.start <= scheduledTime && scheduledTime < plan.end)));
+      const point = points.find((item) => item.taskId === task.id);
+      if (target) target.tasks.push(task);
+      else if (point) standalonePoints.push(point);
+      else unplaced.push(task);
     }
-    return { date, plans, events, unplaced };
+    unplaced.sort((a, b) => Number(a.placement === 'bottom') - Number(b.placement === 'bottom'));
+    return { date, plans, events, unplaced, routinePoints: standalonePoints };
   }
 
-  function weekModel(records, tasks, date) {
+  function weekModel(records, tasks, date, routines = []) {
     const dates = weekDates(date);
     const instances = eventInstances(records.filter((item) => item.type === 'event'), dates[0], dates[6]);
-    return dates.map((value) => dayModel(records, tasks, value, instances));
+    return dates.map((value) => dayModel(records, tasks, value, instances, routines));
   }
 
   function layout(items) {
@@ -140,5 +160,5 @@
     return `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${week}주차`;
   }
 
-  return { days, addDays, weekStart, weekDates, weekLabel, minutes, time, safeColor, overlaps, planAt, planInstances, startsBetween, eventInstances, eventsOnDate, dayModel, weekModel, layout };
+  return { days, addDays, weekStart, weekDates, weekLabel, minutes, time, safeColor, overlaps, planAt, planInstances, routinePoints, startsBetween, eventInstances, eventsOnDate, dayModel, weekModel, layout };
 });

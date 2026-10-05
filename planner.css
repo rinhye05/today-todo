@@ -663,7 +663,7 @@
 }
 /* The whole daily timeline stays visible;
 only narrow screens scroll horizontally. */
-                                                                                                                                                                                                                                                              .planner-scroll {
+.planner-scroll {
   max-height:none;
   overflow-x:auto;
   overflow-y:hidden;
@@ -744,3 +744,44 @@ only narrow screens scroll horizontally. */
 .time-line:last-of-type {
   transform:translateY(-1px);
 }
+.week-block-content {
+  display:flow-root;
+  min-width:0;
+}
+.weekly-task>div {
+  flex:1;
+  min-width:0;
+}
+.week-block-title,.weekly-task button,.weekly-deadline,.week-block small {
+  max-width:100%;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+.auto-grow-field {
+  min-height:37px;
+  height:auto;
+  padding:9px 10px;
+  line-height:1.7;
+  overflow:hidden;
+  resize:none;
+}
+#plan-note {
+  min-height:64px;
+}
+.day-time-fields {display:grid;gap:9px;margin-top:14px}
+.day-time-row {display:flex;align-items:center;gap:8px;font-size:10px;color:var(--muted)}
+.day-time-row>span,.day-time-row>label {flex:none}
+.day-time-row .text-field {flex:1;min-width:0}
+.routine-point {background:transparent;border:0;border-top:2px solid var(--category-color);border-radius:0;padding:5px 2px}
+.routine-task-line {border-top:2px solid var(--category-color);padding:5px 2px;margin-top:5px}
+.routine-point .routine-task-line {border:0;margin:0;padding:0}
+.routine-point-row {display:flex;align-items:flex-start;gap:4px;min-width:0}
+.routine-point-row .week-block-title {flex:1;min-width:0}
+.routine-point-row time {flex:none;white-space:nowrap;font-size:8px;color:#b9c9d8;line-height:1.6}
+.routine-task-line.done .week-block-title {text-decoration:line-through;color:#8b9caa}
+.routine-time-settings {font-size:10px;color:#a6c8e8;line-height:1.8;overflow-wrap:anywhere}
+.routine-time-meta {color:#a6c8e8}
+.week-grid {grid-template-columns:45px repeat(7,minmax(var(--day-min-width,118px),1fr));min-width:calc(45px + 7 * var(--day-min-width,118px))}
+.plan-record-actions {display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#view-plan-history {margin-top:14px;color:#a6c8e8}
+.plan-management-list article>div:first-child {min-width:0;overflow-wrap:anywhere}
