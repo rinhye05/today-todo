@@ -291,6 +291,17 @@
     updateDayFilterLabels();
   }
 
+  function daySortTime(item, time = item.routineTime) {
+    const deadline = window.TodoDeadline.timestamp(item);
+    if (Number.isFinite(deadline)) return deadline;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time || '')) return Infinity;
+    return new Date(`${selectedDate}T${time}:00`).getTime();
+  }
+
+  function sortDayTasks(items) {
+    return [...items].sort((a, b) => Number(Boolean(a.routineId)) - Number(Boolean(b.routineId)) || daySortTime(a) - daySortTime(b) || (a.createdAt || 0) - (b.createdAt || 0));
+  }
+
   function getVisibleTasks() {
     let items = tasks.filter((task) => task.type !== 'routine');
     if (view === 'day') items = items.filter((t) => t.date === selectedDate && matchesDayFilters(t, t.routineId ? 'routine' : 'task'));
@@ -300,7 +311,7 @@
     if (query) items = items.filter((t) => t.title.toLocaleLowerCase('ko').includes(query) || t.note.toLocaleLowerCase('ko').includes(query) || t.subtasks.some((s) => s.title.toLocaleLowerCase('ko').includes(query)));
     if (filter === 'active') items = items.filter((t) => !t.done);
     if (filter === 'done') items = items.filter((t) => t.done);
-    return view === 'upcoming' ? items : sortTasks(items);
+    return view === 'day' ? sortDayTasks(items) : view === 'upcoming' ? items : sortTasks(items);
   }
 
   function generateRoutineTasks() {
@@ -484,6 +495,7 @@
     const items = getVisibleTasks();
     const query = $('#search-input').value.trim().toLocaleLowerCase('ko');
     const plans = view === 'day' ? window.TodoPlanner.dayPlans(selectedDate).filter((plan) => matchesDayFilters(plan, 'plan') && (filter !== 'done' || plan.done) && (filter !== 'active' || (!plan.done && !plan.blocked)) && (!query || `${plan.title} ${plan.note || ''}`.toLocaleLowerCase('ko').includes(query))) : [];
+    plans.sort((a, b) => daySortTime(a, a.startTime) - daySortTime(b, b.startTime));
     const planCards = plans.map((plan) => window.TodoPlanner.dayPlanCard(plan, selectedDate)).join('');
     if (!items.length && !plans.length) {
       const headline = $('#search-input').value.trim() || (view === 'day' && (dayCategories || dayKinds)) ? '검색 결과가 없어요' : filter === 'done' ? '아직 완료한 일이 없어요' : filter === 'active' ? '진행 중인 일이 없어요' : view === 'day' ? '이 날은 여유롭네요' : '아직 할 일이 없어요';
@@ -491,7 +503,7 @@
       list.innerHTML = `<div class="empty-state"><div class="empty-icon">✦</div><h3>${headline}</h3><p>${copy}</p><button class="text-link" data-action="new">＋ 할 일 추가하기</button></div>`;
       return;
     }
-    list.innerHTML = planCards + items.map((task) => {
+    list.innerHTML = items.map((task) => {
       const count = task.subtasks.length;
       const priority = task.priority !== 'normal' ? `<span class="priority ${task.priority}">${task.priority === 'high' ? '높음' : '낮음'}</span>` : '';
       const dateMeta = view !== 'day' ? `<span>◷ ${escapeHTML(fmtDate(task.date, { month: 'short', day: 'numeric' }))}</span>` : '';
@@ -510,7 +522,7 @@
         ? `<form class="subtask-entry" data-task="${task.id}"><input id="subtask-entry" maxlength="120" placeholder="하위 주제 입력…" aria-label="하위 주제 입력" autocomplete="off"><button type="submit" aria-label="하위 주제 저장">추가</button><button type="button" data-action="cancelsub" aria-label="입력 취소">취소</button></form>`
         : `<button type="button" class="subtask-add" data-action="addsub" data-id="${task.id}">＋ 하위 주제 추가</button>`;
       return `<article class="task-card ${task.done ? 'is-done' : ''}"><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">···</button></div></div>${task.note ? `<div class="task-meta"><span>${escapeHTML(task.note)}</span></div>` : ''}<div class="task-meta">${dateMeta}${routineMeta}${categoryMeta}${timeMeta}${priority}${deadlineMeta ? `<span class="deadline-badge ${!task.done && window.TodoDeadline.timestamp(task) < Date.now() ? 'overdue' : ''}">${escapeHTML(deadlineMeta)}</span>` : ''}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
-    }).join('');
+    }).join('') + planCards;
   }
 
   function renderCalendar() {
