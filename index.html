@@ -150,7 +150,7 @@
     <dialog id="settings-dialog" class="task-dialog">
       <div class="dialog-head"><div><div class="eyebrow">PREFERENCES</div><h2>설정</h2></div><button type="button" class="icon-button" id="close-settings" aria-label="닫기">×</button></div>
       <label class="notification-toggle"><span>할일 날짜 변경 시 해당 날짜로 이동</span><input id="follow-task-date" type="checkbox" role="switch"></label><label class="notification-toggle"><span>24시간제로 시간 입력</span><input id="time-24-hour" type="checkbox" role="switch" checked></label>
-      <div class="settings-menu"><button id="account-action" class="settings-item">기기 간 동기화</button><button id="notification-action" class="settings-item">알림 설정</button><button id="chatgpt-action" class="settings-item">GPT 설정 · 도우미</button><button class="settings-item" data-planner-action="categories">카테고리 관리</button></div>
+      <div class="settings-menu"><button id="account-action" class="settings-item" data-settings-dialog="account-dialog">기기 간 동기화</button><button id="notification-action" class="settings-item" data-settings-dialog="notification-dialog">알림 설정</button><button id="chatgpt-action" class="settings-item" data-settings-dialog="chatgpt-dialog">GPT 설정 · 도우미</button><button class="settings-item" data-planner-action="categories" data-settings-dialog="category-dialog">카테고리 관리</button></div>
       <label class="notification-toggle"><span>GPT 사용량 표시</span><input id="show-gpt-usage" type="checkbox" role="switch" checked /></label>
       <p class="field-help">왼쪽 바의 사용량 영역을 표시해요. 끄면 자동 조회도 멈춰요. 이 브라우저에 설정이 저장돼요.</p>
       <div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="primary-button" id="done-settings">완료</button></div>
@@ -185,5 +185,6 @@
     <script src="chatgpt-ui.js"></script>
     <script src="reminders.js"></script>
     <script src="app.js"></script>
+    <script src="settings-navigation.js"></script>
   </body>
 </html>

@@ -42,6 +42,10 @@
 }
 .task-dialog .dialog-actions { position:sticky; bottom:0; padding:12px 0; border-top:1px solid var(--line); z-index:2; background:#171717; box-shadow:0 -8px 12px #171717; }
 .task-actions-dialog .dialog-head h2 { font-size:18px; line-height:1.5; max-height:4.5em; overflow-y:auto; }
+.settings-back-button { display:flex; align-items:center; gap:8px; min-height:36px; max-width:100%; padding:4px 8px 4px 0; margin:0 0 10px; border:0; border-radius:6px; background:transparent; color:var(--accent); font-size:13px; line-height:1.5; text-align:left; cursor:pointer; }
+.settings-back-button[hidden] { display:none; }
+.settings-back-button > span { font-size:24px; line-height:1; }
+.settings-back-button:hover { color:#b7d8ff; }
 .reminder-banner { max-height:calc(100dvh - 32px); overflow-y:auto; bottom:max(16px,env(safe-area-inset-bottom)); }
 .toast { bottom:max(20px,env(safe-area-inset-bottom)); }
 
