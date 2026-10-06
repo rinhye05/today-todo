@@ -158,3 +158,12 @@
   .subtask-delete { min-height:40px; min-width:32px; }
   .subtask-row input { width:20px; height:20px; margin:0; }
 }
+
+/* Prevent iOS focus zoom for all editable controls, including inline notes. */
+@media (max-width: 1060px), (hover: none) and (pointer: coarse) {
+  :root input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  :root textarea,
+  :root select {
+    font-size: 16px;
+  }
+}
