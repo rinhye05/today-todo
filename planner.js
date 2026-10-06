@@ -10,7 +10,7 @@
   let plannerObserver = null, plannerFrame = null;
   const state = () => api.getState();
   const stamp = () => ({ updatedAt: Date.now() });
-  const categories = () => state().records.filter((item) => item.type === 'category' && !item.deleted);
+  const categories = () => state().records.filter((item) => item.type === 'category' && !item.deleted).sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
   const category = (id) => categories().find((item) => item.id === id);
   const color = (id) => core.safeColor(category(id)?.color);
   const badge = (id) => category(id) ? `<span class="category-badge" style="--category-color:${color(id)}"><i></i>${esc(category(id).name)}</span>` : '';
@@ -48,7 +48,7 @@
         <div id="event-weekday-field"><div class="field-label">반복 시작 요일</div>${weekdays('event-weekdays')}</div>
         <div id="event-until-field"><label class="field-label" for="event-until">반복 종료일 <span>선택</span></label><input class="text-field" type="date" id="event-until"><p class="field-help">비워두면 계속 반복해요. 종료일은 각 일정의 시작일 기준이에요. 월 단위는 시작 날짜를 반복하고 없는 날짜는 월말에 배치해요.</p></div>
         <label class="field-label" for="event-allow-plan">겹치는 주간 플랜을 수행할 수 있나요?</label><select class="text-field" id="event-allow-plan"><option value="no">수행하지 않음 · 해당 플랜을 달성 목표에서 제외</option><option value="yes">수행 가능 · 주간 플랜 유지</option></select>
-        <div class="event-conflicts" id="event-conflicts"></div>
+        <div class="event-conflicts" id="event-conflicts"></div><p class="field-help">꼭 해야 할 플랜은 체크하고 이동할 시간을 입력하세요. 반복 일정에도 같은 시간이 적용돼요. 빈 시간이 없으면 기존 제외 정책을 유지해요.</p><div id="event-plan-moves"></div>
         <label class="field-label" for="event-note">메모</label><textarea class="text-field" id="event-note" maxlength="500" rows="2"></textarea><p class="field-help">여러 날에 걸친 일정은 시작 시각부터 종료 날짜의 종료 시각까지 이어져요. 수정·삭제는 반복 일정 전체에 적용돼요.</p><p class="form-error" id="event-error" role="alert"></p>${actions('event-dialog', 'delete-event')}
       </form></dialog>`;
     document.body.append(wrapper);
@@ -80,7 +80,7 @@
       const sub = routine.subtask ? task.subtasks.find((item) => item.routineId === routine.id) : null;
       return routineRow({ routineId: routine.id, occurrenceDate: task.routineDate || task.date, title: sub?.title || task.title, categoryId: task.categoryId, time: task.routineTime, done: routine.subtask ? Boolean(sub?.done) : task.done });
     }
-    return `<div class="weekly-task ${task.done ? 'done' : ''}"><input type="checkbox" data-action="toggle" data-id="${esc(task.id)}" ${task.done ? 'checked' : ''} aria-label="${esc(task.title)} 완료"><div><button data-action="edit" data-id="${esc(task.id)}" type="button">${esc(task.title)}</button>${deadline ? `<span class="weekly-deadline">${esc(deadline)}</span>` : ''}</div></div>`;
+    return `<div class="weekly-task ${task.done ? 'done' : ''}"><input type="checkbox" data-action="toggle" data-id="${esc(task.id)}" ${task.done ? 'checked' : ''} aria-label="${esc(task.title)} 완료"><div><button data-action="edit" data-id="${esc(task.id)}" type="button">${esc(task.title)}</button><textarea class="inline-note" data-note-task="${esc(task.id)}" rows="1" maxlength="500" placeholder="메모 추가" aria-label="${esc(task.title)} 메모">${esc(task.note || '')}</textarea>${deadline ? `<span class="weekly-deadline">${esc(deadline)}</span>` : ''}</div></div>`;
   }
 
   function routineRow(point) {
@@ -228,11 +228,11 @@
   function renderEvents() {
     if (state().view !== 'events') return;
     const events = state().records.filter((item) => item.type === 'event' && !item.deleted).sort((a, b) => a.startDate.localeCompare(b.startDate));
-    $('#events-view').innerHTML = `<div class="planner-toolbar"><div><h2>나의 일정</h2><p>특별 일정과 반복 일정을 관리해요.</p></div><button class="secondary-button" data-planner-action="new-event">＋ 일정 추가</button></div>` + (events.map((event) => `<article class="event-card" style="--category-color:${color(event.categoryId)}"><div><h3>${esc(event.title)}</h3>${badge(event.categoryId)}<p>${esc(event.startDate)} (${core.days[schedule.parseDate(event.startDate).getDay()]}) ${event.endDate !== event.startDate ? `— ${esc(event.endDate)}` : ''} · ${event.allDay ? '종일' : `${esc(event.startTime)}–${esc(event.endTime)}`}</p><p>${esc(repeatDescription(event))}</p><small>${event.allowPlan ? '겹치는 플랜도 수행 가능' : '겹치는 플랜은 달성 목표에서 제외'}</small>${event.note ? `<p>${esc(event.note)}</p>` : ''}</div><button class="secondary-button" data-planner-action="edit-event" data-id="${esc(event.id)}">수정</button></article>`).join('') || '<p class="planner-empty">아직 일정이 없어요. 날짜와 시간을 정해서 추가해 보세요.</p>');
+    $('#events-view').innerHTML = `<div class="planner-toolbar"><div><h2>나의 일정</h2><p>특별 일정과 반복 일정을 관리해요.</p></div><button class="secondary-button" data-planner-action="new-event">＋ 일정 추가</button></div>` + (events.map((event) => `<article class="event-card" style="--category-color:${color(event.categoryId)}"><div><label><input type="checkbox" data-event-active="${esc(event.id)}" ${event.active !== false ? 'checked' : ''}> 일정 적용</label><h3>${esc(event.title)}</h3>${badge(event.categoryId)}<p>${esc(event.startDate)} (${core.days[schedule.parseDate(event.startDate).getDay()]}) ${event.endDate !== event.startDate ? `— ${esc(event.endDate)}` : ''} · ${event.allDay ? '종일' : `${esc(event.startTime)}–${esc(event.endTime)}`}</p><p>${esc(repeatDescription(event))}</p><small>${event.allowPlan ? '겹치는 플랜도 수행 가능' : '겹치는 플랜은 달성 목표에서 제외'}</small>${event.note ? `<p>${esc(event.note)}</p>` : ''}</div><button class="secondary-button" data-planner-action="edit-event" data-id="${esc(event.id)}">수정</button></article>`).join('') || '<p class="planner-empty">아직 일정이 없어요. 날짜와 시간을 정해서 추가해 보세요.</p>');
   }
 
   function renderCategories() {
-    $('#category-list').innerHTML = categories().map((item) => `<div class="category-row">${badge(item.id)}<button type="button" class="text-link" data-planner-action="edit-category" data-id="${esc(item.id)}">수정</button><button type="button" class="text-link danger-text" data-planner-action="delete-category" data-id="${esc(item.id)}">삭제</button></div>`).join('') || '<p class="planner-empty">예: 운동, 공부, 업무, 휴식</p>';
+    $('#category-list').innerHTML = categories().map((item) => `<div class="category-row">${badge(item.id)}<button type="button" data-planner-action="category-up" data-id="${esc(item.id)}" aria-label="위로 이동">↑</button><button type="button" data-planner-action="category-down" data-id="${esc(item.id)}" aria-label="아래로 이동">↓</button><button type="button" class="text-link" data-planner-action="edit-category" data-id="${esc(item.id)}">수정</button><button type="button" class="text-link danger-text" data-planner-action="delete-category" data-id="${esc(item.id)}">삭제</button></div>`).join('') || '<p class="planner-empty">예: 운동, 공부, 업무, 휴식</p>';
     for (const id of ['task-category', 'routine-category', 'plan-category', 'event-category']) fillCategories($(`#${id}`));
   }
 
@@ -356,13 +356,17 @@
       else records.push({ id: `plan-check-${id}-${date}`, type: 'plan-check', planId: id, date, createdAt: Date.now(), ...values });
     });
   }
+  function readPlanMoves() {
+    return Object.fromEntries([...document.querySelectorAll('[data-move-plan]:checked')].map((input) => [input.dataset.movePlan, { startTime: input.closest('.event-move-row').querySelector('[data-move-start]').value, endTime: input.closest('.event-move-row').querySelector('[data-move-end]').value }]));
+  }
   function eventValues() {
     const startDate = $('#event-start-date').value, endDate = $('#event-end-date').value;
     const repeat = $('#event-repeat').value;
-    return { title: $('#event-title').value.trim(), categoryId: $('#event-category').value, startDate, endDate, allDay: $('#event-all-day').checked, startTime: $('#event-start-time').value, endTime: startDate === endDate && $('#event-end-time').value === '00:00' ? '24:00' : $('#event-end-time').value, repeat, interval: repeat === 'none' ? 1 : Number($('#event-interval').value), weekdays: pickedDays('event-weekdays'), repeatUntil: repeat === 'none' ? '' : $('#event-until').value, allowPlan: $('#event-allow-plan').value === 'yes', note: $('#event-note').value.trim() };
+    return { planMoves: readPlanMoves(), active: editingEvent?.active !== false, title: $('#event-title').value.trim(), categoryId: $('#event-category').value, startDate, endDate, allDay: $('#event-all-day').checked, startTime: $('#event-start-time').value, endTime: startDate === endDate && $('#event-end-time').value === '00:00' ? '24:00' : $('#event-end-time').value, repeat, interval: repeat === 'none' ? 1 : Number($('#event-interval').value), weekdays: pickedDays('event-weekdays'), repeatUntil: repeat === 'none' ? '' : $('#event-until').value, allowPlan: $('#event-allow-plan').value === 'yes', note: $('#event-note').value.trim() };
   }
   function updateEventFields() {
     const value = eventValues();
+    const movePlans = new Map();
     $('#event-interval-field').classList.toggle('hidden', value.repeat === 'none');
     $('#event-interval').disabled = value.repeat === 'none';
     $('#event-weekday-field').classList.toggle('hidden', value.repeat !== 'weekly');
@@ -377,8 +381,16 @@
       const instances = core.eventInstances([{ ...value, id: 'preview' }], value.startDate, through);
       for (let date = value.startDate; date <= through; date = core.addDays(date, 1)) {
         const events = core.eventsOnDate(instances, date);
+        core.planInstances(state().records, date).filter((plan) => events.some((item) => core.overlaps(plan, item))).forEach((plan) => movePlans.set(plan.id, plan));
         matches.push(...core.planInstances(state().records, date).filter((plan) => events.some((item) => core.overlaps(plan, item))).map((plan) => `${date.slice(5)} ${plan.title}`));
       }
+    }
+    const moves = Object.keys(value.planMoves).length ? value.planMoves : editingEvent?.planMoves || {};
+    // Preserve fields while typing; rebuild only when the conflict set changes.
+    const signature = [...movePlans.keys()].join('|');
+    if ($('#event-plan-moves').dataset.signature !== signature) {
+      $('#event-plan-moves').dataset.signature = signature;
+      $('#event-plan-moves').innerHTML = [...movePlans.values()].map((plan) => `<div class="event-move-row"><label><input type="checkbox" data-move-plan="${esc(plan.id)}" ${moves[plan.id] ? 'checked' : ''}> ${esc(plan.title)}</label><input class="text-field" type="time" data-move-start value="${esc(moves[plan.id]?.startTime || plan.endTime.replace('24:00', '00:00'))}" aria-label="이동 시작"><input class="text-field" type="time" data-move-end value="${esc(moves[plan.id]?.endTime || core.time(Math.min(1439, plan.end + plan.end - plan.start)))}" aria-label="이동 종료"></div>`).join('');
     }
     $('#event-conflicts').textContent = matches.length ? `시작일부터 7일 내 겹치는 플랜: ${matches.join(', ')}. ${value.allowPlan ? '플랜을 유지해요.' : '미완료 플랜은 달성 목표에서 제외해요.'}` : '시작일부터 7일 내 겹치는 주간 플랜이 없어요.';
   }
@@ -386,6 +398,7 @@
     editingEvent = state().records.find((item) => item.type === 'event' && item.id === id) || null;
     const item = editingEvent;
     $('#event-form').reset(); $('#event-error').textContent = '';
+    $('#event-plan-moves').innerHTML = ''; delete $('#event-plan-moves').dataset.signature;
     $('#event-dialog-title').textContent = item ? '일정 수정' : '일정 추가';
     $('#event-title').value = item?.title || '';
     fillCategories($('#event-category'), item?.categoryId || '');
@@ -405,6 +418,7 @@
   function saveEvent(event) {
     event.preventDefault(); const values = eventValues();
     const validTimes = values.allDay || (Number.isFinite(core.minutes(values.startTime)) && Number.isFinite(core.minutes(values.endTime)) && (values.endDate > values.startDate || core.minutes(values.endTime) > core.minutes(values.startTime)));
+    if (Object.values(values.planMoves).some((move) => !Number.isFinite(core.minutes(move.startTime)) || !Number.isFinite(core.minutes(move.endTime)) || core.minutes(move.endTime) <= core.minutes(move.startTime))) { $('#event-error').textContent = '이동할 플랜의 시작·종료 시간을 확인해 주세요.'; return; }
     if (!values.title || !schedule.validDate(values.startDate) || !schedule.validDate(values.endDate) || values.endDate < values.startDate || !validTimes || !Number.isInteger(values.interval) || values.interval < 1 || values.interval > 365 || (values.repeat === 'weekly' && !values.weekdays.length) || (values.repeatUntil && (!schedule.validDate(values.repeatUntil) || values.repeatUntil < values.startDate))) { $('#event-error').textContent = '날짜·시간과 반복 설정을 확인해 주세요. 종료 시점은 시작 이후여야 해요.'; return; }
     const id = editingEvent?.id;
     api.mutate(({ records }) => {
@@ -442,7 +456,7 @@
       const id = editingCategory || uid(), value = { name, color: core.safeColor($('#category-color').value), ...stamp() };
       api.mutate(({ records }) => {
         const item = records.find((record) => record.id === id);
-        if (item) Object.assign(item, value); else records.push({ id, type: 'category', createdAt: Date.now(), ...value });
+        if (item) Object.assign(item, value); else records.push({ id, type: 'category', order: categories().length, createdAt: Date.now(), ...value });
       });
       for (const parent of ['task', 'routine', 'plan', 'event']) if ($(`#${parent}-dialog`).open) fillCategories($(`#${parent}-category`), id);
       resetCategory(); api.toast('카테고리를 저장했어요.');
@@ -461,6 +475,10 @@
     });
     $('#new-event').addEventListener('click', () => openEvent());
     document.addEventListener('change', (event) => {
+      if (event.target.dataset.eventActive) {
+        api.mutate(({ records }) => Object.assign(records.find((item) => item.id === event.target.dataset.eventActive), { active: event.target.checked, ...stamp() }));
+        api.toast(event.target.checked ? '일정을 다시 적용했어요.' : '일정을 취소하고 원래 플랜을 복구했어요.');
+      }
       if (event.target.id === 'week-jump-date' && schedule.validDate(event.target.value)) api.selectDate(event.target.value, 'overview');
     });
     document.addEventListener('click', (event) => {
@@ -470,6 +488,15 @@
       switch (action) {
         case 'close': $(`#${button.dataset.dialog}`).close(); break;
         case 'categories': resetCategory(); renderCategories(); show('category-dialog'); break;
+        case 'category-up':
+        case 'category-down': {
+          const items = categories(); const index = items.findIndex((item) => item.id === id);
+          const next = index + (action === 'category-up' ? -1 : 1);
+          if (next < 0 || next >= items.length) break;
+          [items[index], items[next]] = [items[next], items[index]];
+          api.mutate(() => items.forEach((item, order) => Object.assign(item, { order, ...stamp() })));
+          break;
+        }
         case 'edit-category': {
           const item = category(id); if (!item) break; editingCategory = id;
           $('#category-name').value = item.name; $('#category-color').value = color(id); $('#category-save').textContent = '수정 저장'; $('#category-error').textContent = ''; break;

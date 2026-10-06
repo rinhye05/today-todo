@@ -71,7 +71,7 @@
   function eventInstances(events, from, through) {
     const instances = [];
     const rangeStart = dayNumber(from) * 1440, rangeEnd = (dayNumber(through) + 1) * 1440;
-    for (const event of events.filter((item) => !item.deleted)) {
+    for (const event of events.filter((item) => !item.deleted && item.active !== false)) {
       const duration = dayNumber(event.endDate || event.startDate) - dayNumber(event.startDate);
       const startMinute = event.allDay ? 0 : minutes(event.startTime);
       const endMinute = event.allDay ? 1440 : minutes(event.endTime);
@@ -112,13 +112,28 @@
       const base = parseDate(item.date || date).getTime();
       return base + minutes(value) * 60000;
     };
-    return [...items].sort((a, b) => kind(a) - kind(b) || when(a) - when(b) || (a.createdAt || 0) - (b.createdAt || 0));
+    return [...items].sort((a, b) => kind(a) - kind(b) || (a.order ?? 0) - (b.order ?? 0) || when(a) - when(b) || (a.createdAt || 0) - (b.createdAt || 0));
   }
 
   function dayModel(records, tasks, date, instances = null, routines = []) {
     const events = eventsOnDate(instances || eventInstances(records.filter((item) => item.type === 'event'), date, date), date);
     const plans = planInstances(records, date).map((plan) => {
       const conflicts = events.filter((event) => overlaps(plan, event));
+      const move = !plan.done && conflicts.find((event) => event.planMoves?.[plan.id]);
+      if (move) {
+        const value = move.planMoves[plan.id];
+        const start = minutes(value.startTime), end = minutes(value.endTime);
+        const candidate = { start, end };
+        const occupied = planInstances(records, date).filter((item) => item.id !== plan.id);
+        for (const event of events) {
+          for (const [id, other] of Object.entries(event.planMoves || {})) {
+            if (id !== plan.id && occupied.some((item) => item.id === id)) occupied.push({ start: minutes(other.startTime), end: minutes(other.endTime) });
+          }
+        }
+        if (Number.isFinite(start) && end > start && !events.some((event) => overlaps(candidate, event)) && !occupied.some((item) => overlaps(candidate, item))) {
+          return { ...plan, originalStartTime: plan.startTime, originalEndTime: plan.endTime, startTime: value.startTime, endTime: value.endTime, start, end, movedByEvent: move.id, conflicts: [], blocked: false, tasks: [] };
+        }
+      }
       return { ...plan, conflicts, blocked: !plan.done && conflicts.some((event) => !event.allowPlan), tasks: [] };
     });
     const unplaced = [];

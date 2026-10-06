@@ -105,3 +105,25 @@ test('daily and weekly lists sort by kind, deadline or time with unscheduled ite
   assert.deepEqual(core.sortDailyItems(items,date).map(item=>item.id),['early','late','none','routine-early','routine-late','routine-none','plan-early','plan-late']);
   assert.deepEqual(core.dayModel([],items.filter(item=>item.type!=='plan'),date).unplaced.map(item=>item.id),['early','late','none','routine-early','routine-late','routine-none']);
 });
+
+test('event moves an unfinished plan and cancellation restores its original time and tasks', () => {
+  const appointment = event({ planMoves: { exercise: { startTime: '22:00', endTime: '23:00' } } });
+  const task = { id: 'todo', date: '2026-10-12', categoryId: 'fitness', planId: 'exercise' };
+  let model = core.dayModel([plan(), appointment], [task], '2026-10-12');
+  assert.equal(model.plans[0].startTime, '22:00');
+  assert.equal(model.plans[0].blocked, false);
+  assert.equal(model.plans[0].tasks[0].id, 'todo');
+  model = core.dayModel([plan(), { ...appointment, active: false }], [task], '2026-10-12');
+  assert.equal(model.events.length, 0);
+  assert.equal(model.plans[0].startTime, '20:00');
+  assert.equal(model.plans[0].tasks[0].id, 'todo');
+});
+test('invalid or occupied relocation keeps conflict policy, completed plans preserve history', () => {
+  const appointment = event({ planMoves: { exercise: { startTime: '20:00', endTime: '21:00' } } });
+  assert.equal(core.dayModel([plan(), appointment], [], '2026-10-12').plans[0].blocked, true);
+  const occupied = plan({ id: 'other', startTime: '22:00', endTime: '23:00' });
+  appointment.planMoves.exercise = { startTime: '22:00', endTime: '23:00' };
+  assert.equal(core.dayModel([plan(), occupied, appointment], [], '2026-10-12').plans.find(p => p.id === 'exercise').blocked, true);
+  const check = { type: 'plan-check', planId: 'exercise', date: '2026-10-12', done: true, snapshot: plan() };
+  assert.equal(core.dayModel([plan(), appointment, check], [], '2026-10-12').plans[0].startTime, '20:00');
+});

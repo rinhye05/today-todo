@@ -19,6 +19,7 @@
   let plannerRecords = loadedRecords.filter((record) => plannerTypes.has(record.type));
   let tasks = loadedRecords.filter((record) => record.type !== 'routine' && !plannerTypes.has(record.type));
   let routines = loadedRecords.filter((record) => record.type === 'routine').map(schedule.normalizeRoutine);
+  const followDate = () => localStorage.getItem('todo-follow-date') === 'true';
   let selectedDate = iso(today);
   let shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   let view = 'overview';
@@ -269,7 +270,7 @@
 
   function dayFilterOptions() {
     return {
-      category: [{ id: '', name: '카테고리 없음' }, ...plannerRecords.filter((item) => item.type === 'category' && !item.deleted).map((item) => ({ id: item.id, name: item.name, color: item.color }))],
+      category: [{ id: '', name: '카테고리 없음' }, ...plannerRecords.filter((item) => item.type === 'category' && !item.deleted).sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0)).map((item) => ({ id: item.id, name: item.name, color: item.color }))],
       kind: [{ id: 'task', name: '할 일' }, { id: 'routine', name: '루틴' }, { id: 'plan', name: '플랜' }],
     };
   }
@@ -308,7 +309,9 @@
     if (query) items = items.filter((t) => t.title.toLocaleLowerCase('ko').includes(query) || t.note.toLocaleLowerCase('ko').includes(query) || t.subtasks.some((s) => s.title.toLocaleLowerCase('ko').includes(query)));
     if (filter === 'active') items = items.filter((t) => !t.done);
     if (filter === 'done') items = items.filter((t) => t.done);
-    return view === 'day' ? window.TodoPlannerCore.sortDailyItems(items, selectedDate) : view === 'upcoming' ? items : sortTasks(items);
+    const sorted = view === 'day' ? window.TodoPlannerCore.sortDailyItems(items, selectedDate) : view === 'upcoming' ? items : sortTasks(items);
+    const positions = new Map(sorted.map((item, index) => [item.id, index]));
+    return view === 'upcoming' ? sorted : sorted.sort((a, b) => (a.order ?? positions.get(a.id)) - (b.order ?? positions.get(b.id)));
   }
 
   function generateRoutineTasks() {
@@ -518,7 +521,7 @@
       const subtaskInput = addingSubtaskFor === task.id
         ? `<form class="subtask-entry" data-task="${task.id}"><input id="subtask-entry" maxlength="120" placeholder="하위 주제 입력…" aria-label="하위 주제 입력" autocomplete="off"><button type="submit" aria-label="하위 주제 저장">추가</button><button type="button" data-action="cancelsub" aria-label="입력 취소">취소</button></form>`
         : `<button type="button" class="subtask-add" data-action="addsub" data-id="${task.id}">＋ 하위 주제 추가</button>`;
-      return `<article class="task-card ${task.done ? 'is-done' : ''}"><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">···</button></div></div>${task.note ? `<div class="task-meta"><span>${escapeHTML(task.note)}</span></div>` : ''}<div class="task-meta">${dateMeta}${routineMeta}${categoryMeta}${timeMeta}${priority}${deadlineMeta ? `<span class="deadline-badge ${!task.done && window.TodoDeadline.timestamp(task) < Date.now() ? 'overdue' : ''}">${escapeHTML(deadlineMeta)}</span>` : ''}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
+      return `<article data-task-id="${task.id}" class="task-card ${task.done ? 'is-done' : ''}"><button type="button" draggable="true" class="task-drag" data-drag-task="${task.id}" aria-label="할일 순서 변경">⠿</button><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">···</button></div></div><textarea class="inline-note" data-note-task="${task.id}" rows="1" maxlength="500" placeholder="메모 추가" aria-label="${escapeHTML(task.title)} 메모">${escapeHTML(task.note || '')}</textarea><div class="task-meta">${dateMeta}${routineMeta}${categoryMeta}${timeMeta}${priority}${deadlineMeta ? `<span class="deadline-badge ${!task.done && window.TodoDeadline.timestamp(task) < Date.now() ? 'overdue' : ''}">${escapeHTML(deadlineMeta)}</span>` : ''}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
     }).join('') + planCards;
   }
 
@@ -610,7 +613,7 @@
     let changedTask;
     if (editingId) { changedTask = tasks.find((t) => t.id === editingId); if (changedTask.routineId && !changedTask.routineDate) changedTask.routineDate = changedTask.date; Object.assign(changedTask, values); toast('할 일을 수정했어요.'); }
     else { const now = Date.now(); changedTask = { id: uid(), ...values, done: false, subtasks: [], createdAt: now, updatedAt: now }; tasks.push(changedTask); toast('할 일을 저장했어요.'); }
-    selectedDate = values.date; shownMonth = new Date(parseDate(values.date).getFullYear(), parseDate(values.date).getMonth(), 1);
+    if (!editingId || followDate()) { selectedDate = values.date; shownMonth = new Date(parseDate(values.date).getFullYear(), parseDate(values.date).getMonth(), 1); }
     closeDialog(); persist(changedTask);
   }
 
@@ -672,8 +675,7 @@
     } else if (action === 'today') {
       if (task.routineId && !task.routineDate) task.routineDate = task.date;
       task.date = iso(today);
-      selectedDate = task.date;
-      shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      if (followDate()) { selectedDate = task.date; shownMonth = new Date(today.getFullYear(), today.getMonth(), 1); }
       persist(task);
       toast('오늘 할 일로 옮겼어요.');
     } else if (action === 'routine') {
@@ -703,8 +705,7 @@
     if (task.routineId && !task.routineDate) task.routineDate = task.date;
     task.date = $('#move-date').value;
     const movedDate = parseDate(task.date);
-    selectedDate = task.date;
-    shownMonth = new Date(movedDate.getFullYear(), movedDate.getMonth(), 1);
+    if (followDate()) { selectedDate = task.date; shownMonth = new Date(movedDate.getFullYear(), movedDate.getMonth(), 1); }
     $('#date-dialog').close();
     persist(task);
     toast('날짜를 바꿨어요.');
@@ -851,6 +852,49 @@
     if (event.key === 'Escape' && event.target.id === 'subtask-entry') { addingSubtaskFor = null; renderTaskList(); }
     if (event.key === 'Escape' && event.target.classList.contains('subtask-edit-input')) { editingSubtaskId = null; renderTaskList(); }
   });
+  document.addEventListener('input', (event) => {
+    const id = event.target.dataset.noteTask;
+    if (!id) return;
+    const task = tasks.find((item) => item.id === id);
+    if (task) { task.note = event.target.value; task.updatedAt = Date.now(); saveRecords(); }
+  });
+  let draggedTask = null;
+  document.addEventListener('dragstart', (event) => {
+    if (!event.target.dataset.dragTask) return;
+    draggedTask = event.target.dataset.dragTask;
+    event.dataTransfer.setData('text/plain', draggedTask);
+    event.dataTransfer.effectAllowed = 'move';
+  });
+  list.addEventListener('dragover', (event) => { if (draggedTask && event.target.closest('[data-task-id]')) event.preventDefault(); });
+  list.addEventListener('drop', (event) => {
+    const target = event.target.closest('[data-task-id]');
+    if (!draggedTask || !target) return;
+    event.preventDefault();
+    const items = getVisibleTasks();
+    const source = items.find((item) => item.id === draggedTask);
+    if (!source || source.id === target.dataset.taskId) return;
+    const reordered = items.filter((item) => item !== source);
+    reordered.splice(reordered.findIndex((item) => item.id === target.dataset.taskId), 0, source);
+    reordered.forEach((item, order) => { item.order = order; item.updatedAt = Date.now(); });
+    draggedTask = null; persist();
+  });
+  document.addEventListener('dragend', () => { draggedTask = null; });
+  $('#bulk-move').addEventListener('click', () => {
+    $('#bulk-move-date').value = selectedDate;
+    $('#bulk-source').textContent = fmtDate(selectedDate);
+    $('#bulk-dialog').dataset.source = selectedDate;
+    $('#bulk-dialog').showModal();
+  });
+  $('#bulk-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const date = $('#bulk-move-date').value;
+    if (!schedule.validDate(date)) return;
+    const items = tasks.filter((item) => item.date === $('#bulk-dialog').dataset.source && !item.done && !item.routineId && !item.planId && !item.subtasks?.some((sub) => sub.routineId));
+    items.forEach((item) => { item.date = date; item.updatedAt = Date.now(); });
+    $('#bulk-dialog').close(); persist(); toast(`${items.length}개의 할 일을 옮겼어요.`);
+  });
+  $('#follow-task-date').checked = followDate();
+  $('#follow-task-date').addEventListener('change', (event) => localStorage.setItem('todo-follow-date', String(event.target.checked)));
   window.TodoPlanner.init({
     getState: () => ({ tasks, routines, records: plannerRecords, today: iso(today), selectedDate, shownMonth: iso(shownMonth), view }),
     mutate: (fn) => { fn({ tasks, routines, records: plannerRecords }); persist(); },

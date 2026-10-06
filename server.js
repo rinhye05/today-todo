@@ -6,7 +6,7 @@ const { ChatGPT, AppError, configuration } = require('./chatgpt');
 const { CodexUsage } = require('./codex-usage');
 
 const root = __dirname;
-const publicFiles = new Set(['index.html', 'styles.css', 'planner.css', 'app.js', 'routine-core.js', 'planner-core.js', 'planner.js', 'deadline-core.js', 'reminders.js', 'usage.js', 'chatgpt-ui.js', 'sw.js', 'sync-config.js', 'todo.webmanifest', 'favicon.svg', 'apple-touch-icon.png', 'todo-192.png', 'todo-512.png']);
+const publicFiles = new Set(['index.html', 'styles.css', 'planner.css', 'app.js', 'preferences.js', 'routine-core.js', 'planner-core.js', 'planner.js', 'deadline-core.js', 'reminders.js', 'usage.js', 'chatgpt-ui.js', 'sw.js', 'sync-config.js', 'todo.webmanifest', 'favicon.svg', 'apple-touch-icon.png', 'todo-192.png', 'todo-512.png']);
 const contentTypes = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json; charset=utf-8',
