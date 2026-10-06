@@ -8,6 +8,9 @@
   let cachedEvents = [];
   let editingPlan = null, editingEvent = null, editingCategory = null;
   let plannerObserver = null, plannerFrame = null;
+  const compactPlanner = matchMedia('(max-width: 1199px)');
+  let compactLayout = 'day';
+  const weekday = (date) => schedule.parseDate(date).getDay();
   const state = () => api.getState();
   const stamp = () => ({ updatedAt: Date.now() });
   const categories = () => state().records.filter((item) => item.type === 'category' && !item.deleted).sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
@@ -116,7 +119,8 @@
     const height = offsets.at(-1);
     const hours = Array.from({ length: (end - begin) / 60 + 1 }, (_, i) => `<span data-minute="${begin + i * 60}" style="top:${position(begin + i * 60)}px">${core.time(begin + i * 60)}</span>`).join('');
     const lines = Array.from({ length: (end - begin) / 30 + 1 }, (_, i) => `<i class="time-line ${i % 2 ? 'half' : ''}" data-minute="${begin + i * 30}" style="top:${position(begin + i * 30)}px"></i>`).join('');
-    const columns = model.map((day, index) => {
+    const columns = model.map((day) => {
+      const index = weekday(day.date);
       const items = core.layout([...day.plans.map((plan) => ({ ...plan, kind: 'plan' })), ...(!template ? [...day.events.filter((event) => !event.allDay).map((event) => ({ ...event, kind: 'event' })), ...day.routinePoints.map((point) => ({ ...point, kind: 'routine' }))] : [])]);
       const blocks = items.filter((item) => item.end > begin && item.start < end).map((item) => {
         const top = position(Math.max(begin, item.start));
@@ -140,7 +144,7 @@
     const columnStyle = `--week-columns:56px ${dayWidths.map((width) => `minmax(${width}px,1fr)`).join(' ')};--week-min-width:${56 + dayWidths.reduce((sum, width) => sum + width, 0)}px`;
     const headingHeight = Math.max(44, 30 + Math.max(0, ...model.map((day) => template ? 0 : day.events.filter((event) => event.allDay).length)) * 22);
     const timetable = `<div class="week-grid" style="${columnStyle};--grid-height:${height}px;--heading-height:${headingHeight}px"><div class="week-time-column"><div class="week-time-heading">TIME</div><div class="week-times" style="height:${height}px">${hours}</div></div>${columns}</div>`;
-    return `<p class="planner-scroll-help">좌우로 스크롤하면 모든 요일을 볼 수 있어요.</p><div id="planner-scroll" class="planner-scroll ${template ? '' : 'week-connected'}" tabindex="0" role="region" aria-label="${template ? '기본 주간 시간표' : '주간 시간표와 요일별 할 일'}">${template ? timetable : `<div class="week-connected-content" style="${columnStyle}">${timetable}${footer}</div>`}</div>`;
+    return `<p class="planner-scroll-help">${model.length === 1 ? '좌우로 스크롤하면 겹친 일정까지 볼 수 있어요.' : '좌우로 스크롤하면 모든 요일을 볼 수 있어요.'}</p><div id="planner-scroll" class="planner-scroll ${template ? '' : 'week-connected'}" tabindex="0" role="region" aria-label="${template ? '기본 주간 시간표' : '주간 시간표와 요일별 할 일'}">${template ? timetable : `<div class="week-connected-content" style="${columnStyle}">${timetable}${footer}</div>`}</div>`;
   }
 
   function fitPlannerGrid() {
@@ -213,17 +217,23 @@
     if (!['overview', 'planner'].includes(view)) return;
     const template = view === 'planner';
     const model = core.weekModel(records, template ? [] : tasks, template ? core.addDays(core.weekStart(today), 7) : selectedDate, template ? [] : routines);
+    const singleDay = compactPlanner.matches && compactLayout === 'day';
+    const focusDate = template ? model.find((day) => weekday(day.date) === weekday(selectedDate)).date : selectedDate;
+    const displayModel = singleDay ? model.filter((day) => day.date === focusDate) : model;
+    const layoutControls = compactPlanner.matches ? `<div class="planner-layout-controls" role="group" aria-label="시간표 보기 방식"><button data-planner-action="planner-layout" data-layout="day" aria-pressed="${singleDay}">하루씩</button><button data-planner-action="planner-layout" data-layout="week" aria-pressed="${!singleDay}">일주일</button></div>` : '';
+    const dayPicker = singleDay ? `<nav class="planner-day-picker" aria-label="시간표 요일 선택">${model.map((day) => `<button data-planner-action="focus-planner-day" data-day="${day.date}" aria-label="${day.date} ${core.days[weekday(day.date)]}요일 시간표" aria-pressed="${day.date === focusDate}"><b class="weekday-${weekday(day.date)}">${core.days[weekday(day.date)]}</b>${template ? '' : `<span>${Number(day.date.slice(5,7))}/${Number(day.date.slice(8))}</span>`}</button>`).join('')}</nav>` : '';
     const plans = model.flatMap((day) => day.plans);
     const eligible = plans.filter((plan) => !plan.blocked);
     const weekTasks = tasks.filter((task) => task.date >= model[0].date && task.date <= model[6].date);
     const range = `${model[0].date.replaceAll('-', '.')} — ${model[6].date.replaceAll('-', '.')}`;
-    const toolbar = `<div class="planner-toolbar"><div><h2>${template ? '평상시의 일주일' : core.weekLabel(selectedDate)}</h2><p>${template ? '특별 일정이 없는 날의 기본 시간표예요. 빈 시간을 클릭해서 플랜을 추가할 수 있어요.' : range}</p></div><div class="planner-tools">${!template ? `<button class="icon-button" data-planner-action="prev-week" aria-label="이전 주">‹</button><button class="secondary-button" data-planner-action="this-week">이번 주</button><button class="icon-button" data-planner-action="next-week" aria-label="다음 주">›</button><input type="date" id="week-jump-date" value="${selectedDate}" aria-label="확인할 주의 날짜">` : ''}${!template ? '<button class="secondary-button" data-planner-action="new-plan">＋ 플랜 추가</button>' : ''}<button class="secondary-button" data-planner-action="categories">카테고리 관리</button></div></div>`;
+    const toolbar = `<div class="planner-toolbar"><div><h2>${template ? '평상시의 일주일' : core.weekLabel(selectedDate)}</h2><p>${template ? '특별 일정이 없는 날의 기본 시간표예요. 빈 시간을 클릭해서 플랜을 추가할 수 있어요.' : range}</p></div><div class="planner-tools">${!template ? `<div class="week-navigation"><button class="icon-button" data-planner-action="prev-week" aria-label="이전 주">‹</button><button class="secondary-button" data-planner-action="this-week">이번 주</button><button class="icon-button" data-planner-action="next-week" aria-label="다음 주">›</button></div><input type="date" id="week-jump-date" value="${selectedDate}" aria-label="확인할 주의 날짜">` : ''}<div class="planner-management">${!template ? '<button class="secondary-button" data-planner-action="new-plan">＋ 플랜 추가</button>' : ''}<button class="secondary-button" data-planner-action="categories">카테고리 관리</button></div></div></div>`;
     const stats = !template ? `<div class="week-summary"><span><i class="summary-dot"></i>플랜 완료 <b>${eligible.filter((item) => item.done).length}/${eligible.length}</b></span><span>할 일 완료 <b>${weekTasks.filter((item) => item.done).length}/${weekTasks.length}</b></span><span>일정으로 제외 <b>${plans.filter((item) => item.blocked).length}</b></span><span class="week-summary-help">플랜 체크와 할 일 체크는 각각 기록해요.</span></div>` : `<p class="field-help">이 시간표는 다음 완전한 주를 기준으로 보여줘요. 실제 주간 기록과 특별 일정은 전체 보기에서 확인하세요.</p>`;
     const legend = `<div class="planner-category-legend">${categories().map((item) => badge(item.id)).join('')}<span>▣ 특별 일정</span></div>`;
-    const bottom = template ? `<div class="plan-management-list">${records.filter((item) => item.type === 'plan' && !item.deletedFrom).map((plan) => `<article><div><strong>${esc(plan.title)}</strong><p>${plan.dayTimes ? plan.weekdays.map((day) => `${core.days[day]} ${esc(plan.dayTimes[day]?.startTime || plan.startTime)}–${esc(plan.dayTimes[day]?.endTime || plan.endTime)}`).join(' · ') : `${plan.weekdays.map((day) => core.days[day]).join('·')} · ${esc(plan.startTime)}–${esc(plan.endTime)}`} ${badge(plan.categoryId)}</p></div><div class="plan-record-actions"><label class="notification-toggle"><span>달력에서 플랜 기록 보기</span><input type="checkbox" role="switch" data-planner-action="toggle-plan-history" data-id="${esc(plan.id)}" ${plan.showInCalendar === true ? 'checked' : ''}></label><button class="secondary-button" data-planner-action="edit-plan" data-id="${esc(plan.id)}">수정</button></div></article>`).join('') || '<p class="planner-empty">플랜을 추가하면 매주 사용할 시간표가 만들어져요.</p>'}</div>` : `<div class="week-extra-heading"><h2>요일별 할 일</h2></div><div class="week-extras-scroll"><div class="week-extras">${model.map((day, index) => `<section class="week-extra-day" data-day="${day.date}"><div class="week-extra-title"><strong class="weekday-${index}">${core.days[index]}</strong><span>${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8))}</span><button class="icon-button" data-planner-action="new-task-day" data-day="${day.date}" aria-label="${day.date} 할 일 추가">＋</button></div>${day.events.map((event) => `<button class="day-event" data-planner-action="edit-event" data-id="${esc(event.id)}" style="--category-color:${color(event.categoryId)}"><b>▣ ${esc(event.title)}</b><small>${event.allDay ? '종일' : `${core.time(event.start)}–${core.time(event.end)}`}</small></button>`).join('')}${day.plans.some((plan) => plan.tasks.length) ? `<p class="placed-count">시간표 안에 할 일 ${day.plans.reduce((count, plan) => count + plan.tasks.length, 0)}개</p>` : ''}${day.unplaced.map((task) => `<div class="unplaced-task">${badge(task.categoryId)}${taskRow(task)}</div>`).join('') || '<p class="planner-empty">추가 할 일이 없어요.</p>'}</section>`).join('')}</div></div>`;
+    const bottom = template ? `<div class="plan-management-list">${records.filter((item) => item.type === 'plan' && !item.deletedFrom).map((plan) => `<article><div><strong>${esc(plan.title)}</strong><p>${plan.dayTimes ? plan.weekdays.map((day) => `${core.days[day]} ${esc(plan.dayTimes[day]?.startTime || plan.startTime)}–${esc(plan.dayTimes[day]?.endTime || plan.endTime)}`).join(' · ') : `${plan.weekdays.map((day) => core.days[day]).join('·')} · ${esc(plan.startTime)}–${esc(plan.endTime)}`} ${badge(plan.categoryId)}</p></div><div class="plan-record-actions"><label class="notification-toggle"><span>달력에서 플랜 기록 보기</span><input type="checkbox" role="switch" data-planner-action="toggle-plan-history" data-id="${esc(plan.id)}" ${plan.showInCalendar === true ? 'checked' : ''}></label><button class="secondary-button" data-planner-action="edit-plan" data-id="${esc(plan.id)}">수정</button></div></article>`).join('') || '<p class="planner-empty">플랜을 추가하면 매주 사용할 시간표가 만들어져요.</p>'}</div>` : `<div class="week-extra-heading"><h2>요일별 할 일</h2></div><div class="week-extras-scroll"><div class="week-extras">${displayModel.map((day) => `<section class="week-extra-day" data-day="${day.date}"><div class="week-extra-title"><strong class="weekday-${weekday(day.date)}">${core.days[weekday(day.date)]}</strong><span>${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8))}</span><button class="icon-button" data-planner-action="new-task-day" data-day="${day.date}" aria-label="${day.date} 할 일 추가">＋</button></div>${day.events.map((event) => `<button class="day-event" data-planner-action="edit-event" data-id="${esc(event.id)}" style="--category-color:${color(event.categoryId)}"><b>▣ ${esc(event.title)}</b><small>${event.allDay ? '종일' : `${core.time(event.start)}–${core.time(event.end)}`}</small></button>`).join('')}${day.plans.some((plan) => plan.tasks.length) ? `<p class="placed-count">시간표 안에 할 일 ${day.plans.reduce((count, plan) => count + plan.tasks.length, 0)}개</p>` : ''}${day.unplaced.map((task) => `<div class="unplaced-task">${badge(task.categoryId)}${taskRow(task)}</div>`).join('') || '<p class="planner-empty">추가 할 일이 없어요.</p>'}</section>`).join('')}</div></div>`;
     const oldScroll = $('#planner-scroll');
     const scroll = oldScroll ? { top: oldScroll.scrollTop, left: oldScroll.scrollLeft } : null;
-    $('#planner-view').innerHTML = toolbar + stats + legend + grid(model, template, template ? '' : bottom) + (template ? bottom : '');
+    $('#planner-view').classList.toggle('single-day-planner', singleDay);
+    $('#planner-view').innerHTML = toolbar + layoutControls + stats + legend + dayPicker + grid(displayModel, template, template ? '' : bottom) + (template ? bottom : '');
     observePlannerLayout();
     if (scroll) { $('#planner-scroll').scrollTop = scroll.top; $('#planner-scroll').scrollLeft = scroll.left; }
   }
@@ -503,6 +513,8 @@
       if (action === 'new-plan-at' && event.target.closest('.week-block')) return;
       switch (action) {
         case 'close': $(`#${button.dataset.dialog}`).close(); break;
+        case 'planner-layout': compactLayout = button.dataset.layout === 'week' ? 'week' : 'day'; renderPlanner(); $(`[data-planner-action="planner-layout"][data-layout="${compactLayout}"]`)?.focus(); break;
+        case 'focus-planner-day': api.selectDate(day, state().view); $(`[data-planner-action="focus-planner-day"][data-day="${day}"]`)?.focus(); break;
         case 'categories': resetCategory(); renderCategories(); show('category-dialog'); break;
         case 'category-up':
         case 'category-down': {
@@ -545,5 +557,6 @@
       }
     });
   }
+  compactPlanner.addEventListener('change', () => { if (api) renderPlanner(); });
   window.TodoPlanner = { init(options) { api = options; addDialogs(); bindForms(); }, prepare, render, resizeNotes, fillCategories, categoryBadge: badge, calendarInfo, renderCalendarHistory, dayPlans, dayPlanCard };
 })();

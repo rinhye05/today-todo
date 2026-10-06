@@ -459,6 +459,8 @@
     if (view === 'planner' || view === 'events') $('#new-task').dataset.plannerAction = view === 'planner' ? 'new-plan' : 'new-event';
     else delete $('#new-task').dataset.plannerAction;
     $('.main-area').dataset.view = view;
+    $('#list-day-control').classList.toggle('hidden', view !== 'day');
+    $('#list-jump-date').value = selectedDate;
     $('#task-controls').classList.toggle('hidden', !['day', 'overview'].includes(view));
     $('#bulk-move').title = `${fmtDate(selectedDate)}의 일반 미완료 할 일을 옮겨요`;
     const selectedItems = view === 'all' ? tasks : view === 'completed' ? tasks.filter((t) => t.done) : view === 'upcoming' ? window.TodoDeadline.upcoming(tasks, iso(today)) : [...tasks.filter((t) => t.date === selectedDate), ...(view === 'day' ? window.TodoPlanner.dayPlans(selectedDate).filter((plan) => !plan.blocked) : [])];
@@ -468,7 +470,16 @@
     const percent = selectedItems.length ? Math.round(done / selectedItems.length * 100) : 0;
     $('#summary-open').textContent = remaining; $('#summary-done').textContent = done;
     $('#progress-label').textContent = `${percent}%`; $('#progress-bar').style.width = `${percent}%`;
-    document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.view === view));
+    document.querySelectorAll('.nav-item').forEach((el) => {
+      el.classList.toggle('active', el.dataset.view === view);
+      el.setAttribute('aria-label', dateNames[el.dataset.view]);
+      el.title = dateNames[el.dataset.view];
+      if (el.dataset.view === view) el.setAttribute('aria-current', 'page');
+      else el.removeAttribute('aria-current');
+    });
+    const mobileNav = $('.mobile-nav');
+    const currentNav = mobileNav.querySelector('.active');
+    if (mobileNav.clientWidth && currentNav) mobileNav.scrollLeft = currentNav.offsetLeft - mobileNav.clientWidth / 2 + currentNav.offsetWidth / 2;
     $('#month-label').textContent = shownMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
     $('#selected-date-label').textContent = fmtDate(selectedDate);
     renderDayFilters(); renderRoutineSelector(); renderCalendar(); renderTaskList(); renderAgenda(); renderRoutineList();
@@ -813,6 +824,17 @@
   $('#prev-month').addEventListener('click', () => { shownMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() - 1, 1); render(); });
   $('#next-month').addEventListener('click', () => { shownMonth = new Date(shownMonth.getFullYear(), shownMonth.getMonth() + 1, 1); render(); });
   function showToday() { selectedDate = iso(today); shownMonth = new Date(today.getFullYear(), today.getMonth(), 1); view = 'day'; filter = 'all'; selectedRoutineId = ''; $('#search-input').value = ''; document.querySelectorAll('.filter-tab').forEach((tab) => tab.classList.toggle('selected', tab.dataset.filter === 'all')); render(); }
+  function showListDate(date) {
+    if (!schedule.validDate(date)) return;
+    selectedDate = date;
+    const value = parseDate(date);
+    shownMonth = new Date(value.getFullYear(), value.getMonth(), 1);
+    render();
+  }
+  $('#list-jump-date').addEventListener('change', (event) => showListDate(event.target.value));
+  $('#list-prev-day').addEventListener('click', () => showListDate(window.TodoPlannerCore.addDays(selectedDate, -1)));
+  $('#list-next-day').addEventListener('click', () => showListDate(window.TodoPlannerCore.addDays(selectedDate, 1)));
+  $('#list-today').addEventListener('click', showToday);
   $('#go-today').addEventListener('click', () => {
     if (view === 'overview') {
       selectedDate = iso(today);
