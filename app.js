@@ -453,9 +453,16 @@
     list.classList.toggle('hidden', routineView || extendedView);
     $('#routine-list').classList.toggle('hidden', !routineView);
     $('#new-routine').classList.toggle('hidden', routineView || ['planner', 'events'].includes(view));
-    $('#new-task').innerHTML = `<span>＋</span> ${routineView ? '새 루틴' : '새 할 일'}`;
-    $('#new-task').setAttribute('aria-label', routineView ? '새 루틴 만들기' : '새 할 일 만들기');
-    const selectedItems = [...tasks.filter((t) => t.date === selectedDate), ...(view === 'day' ? window.TodoPlanner.dayPlans(selectedDate).filter((plan) => !plan.blocked) : [])];
+    const createLabel = routineView ? '새 루틴' : view === 'planner' ? '새 플랜' : view === 'events' ? '새 일정' : '새 할 일';
+    $('#new-task').innerHTML = `<span>＋</span> ${createLabel}`;
+    $('#new-task').setAttribute('aria-label', `${createLabel} 만들기`);
+    if (view === 'planner' || view === 'events') $('#new-task').dataset.plannerAction = view === 'planner' ? 'new-plan' : 'new-event';
+    else delete $('#new-task').dataset.plannerAction;
+    $('.main-area').dataset.view = view;
+    $('#task-controls').classList.toggle('hidden', !['day', 'overview'].includes(view));
+    $('#bulk-move').title = `${fmtDate(selectedDate)}의 일반 미완료 할 일을 옮겨요`;
+    const selectedItems = view === 'all' ? tasks : view === 'completed' ? tasks.filter((t) => t.done) : view === 'upcoming' ? window.TodoDeadline.upcoming(tasks, iso(today)) : [...tasks.filter((t) => t.date === selectedDate), ...(view === 'day' ? window.TodoPlanner.dayPlans(selectedDate).filter((plan) => !plan.blocked) : [])];
+    $('#progress-scope').textContent = view === 'day' ? (selectedDate === iso(today) ? '오늘의 진행률' : '이 날의 진행률') : '목록 진행률';
     const remaining = selectedItems.filter((t) => !t.done).length;
     const done = selectedItems.filter((t) => t.done).length;
     const percent = selectedItems.length ? Math.round(done / selectedItems.length * 100) : 0;
@@ -521,8 +528,9 @@
       const subtaskInput = addingSubtaskFor === task.id
         ? `<form class="subtask-entry" data-task="${task.id}"><input id="subtask-entry" maxlength="120" placeholder="하위 주제 입력…" aria-label="하위 주제 입력" autocomplete="off"><button type="submit" aria-label="하위 주제 저장">추가</button><button type="button" data-action="cancelsub" aria-label="입력 취소">취소</button></form>`
         : `<button type="button" class="subtask-add" data-action="addsub" data-id="${task.id}">＋ 하위 주제 추가</button>`;
-      return `<article data-task-id="${task.id}" class="task-card ${task.done ? 'is-done' : ''}"><button type="button" draggable="true" class="task-drag" data-drag-task="${task.id}" aria-label="할일 순서 변경">⠿</button><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">···</button></div></div><textarea class="inline-note" data-note-task="${task.id}" rows="1" maxlength="500" placeholder="메모 추가" aria-label="${escapeHTML(task.title)} 메모">${escapeHTML(task.note || '')}</textarea><div class="task-meta">${dateMeta}${routineMeta}${categoryMeta}${timeMeta}${priority}${deadlineMeta ? `<span class="deadline-badge ${!task.done && window.TodoDeadline.timestamp(task) < Date.now() ? 'overdue' : ''}">${escapeHTML(deadlineMeta)}</span>` : ''}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
+      return `<article data-task-id="${task.id}" class="task-card ${task.done ? 'is-done' : ''}"><button type="button" draggable="true" class="task-drag" data-drag-task="${task.id}" aria-label="할일 순서 변경">⠿</button><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업" aria-label="할 일 작업">···</button></div></div><textarea class="inline-note" data-note-task="${task.id}" rows="1" maxlength="500" placeholder="메모 추가" aria-label="${escapeHTML(task.title)} 메모">${escapeHTML(task.note || '')}</textarea><div class="task-meta">${dateMeta}${routineMeta}${categoryMeta}${timeMeta}${priority}${deadlineMeta ? `<span class="deadline-badge ${!task.done && window.TodoDeadline.timestamp(task) < Date.now() ? 'overdue' : ''}">${escapeHTML(deadlineMeta)}</span>` : ''}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
     }).join('') + planCards;
+    window.TodoPlanner.resizeNotes(list);
   }
 
   function renderCalendar() {
@@ -789,7 +797,7 @@
   });
   document.querySelectorAll('.nav-item').forEach((button) => button.addEventListener('click', () => { view = button.dataset.view; filter = 'all'; document.querySelectorAll('.filter-tab').forEach((t) => t.classList.toggle('selected', t.dataset.filter === 'all')); render(); }));
   document.querySelectorAll('.filter-tab').forEach((button) => button.addEventListener('click', () => { filter = button.dataset.filter; document.querySelectorAll('.filter-tab').forEach((t) => t.classList.toggle('selected', t === button)); renderTaskList(); }));
-  $('#new-task').addEventListener('click', () => view === 'routines' ? openRoutineDialog() : openDialog()); $('#agenda-add').addEventListener('click', () => openDialog());
+  $('#new-task').addEventListener('click', () => { if (view === 'planner' || view === 'events') return; view === 'routines' ? openRoutineDialog() : openDialog(); }); $('#agenda-add').addEventListener('click', () => openDialog());
   $('#new-routine').addEventListener('click', () => openRoutineDialog());
   $('#routine-frequency').addEventListener('change', updateRoutineFields);
   $('#routine-time').addEventListener('input', updateRoutineFields);
@@ -857,6 +865,7 @@
     if (!id) return;
     const task = tasks.find((item) => item.id === id);
     if (task) { task.note = event.target.value; task.updatedAt = Date.now(); saveRecords(); }
+    window.TodoPlanner.resizeNotes(event.target.parentElement);
   });
   let draggedTask = null;
   document.addEventListener('dragstart', (event) => {

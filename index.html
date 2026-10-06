@@ -11,8 +11,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="planner.css" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -43,12 +43,14 @@
         <div class="content-grid">
           <section class="task-section">
             <div class="page-heading"><div><div class="eyebrow" id="date-eyebrow">MY DAY</div><h1 id="page-title">오늘의 할 일</h1><p id="page-subtitle">작은 한 걸음부터 시작해요.</p></div><div class="heading-actions"><button class="secondary-button" id="new-routine">↻ 루틴 만들기</button><button class="primary-button" id="new-task"><span>＋</span> 새 할 일</button></div></div>
-            <div class="summary-row"><div class="summary-card"><span class="summary-icon">◷</span><span><b id="summary-open">0</b><small>남은 할 일</small></span></div><div class="summary-card"><span class="summary-icon muted">✓</span><span><b id="summary-done">0</b><small>완료한 일</small></span></div><div class="progress-card"><div class="progress-top"><small>오늘의 진행률</small><b id="progress-label">0%</b></div><div class="progress-track"><span id="progress-bar"></span></div></div></div>
+            <div class="summary-row"><div class="summary-card"><span class="summary-icon">◷</span><span><b id="summary-open">0</b><small>남은 할 일</small></span></div><div class="summary-card"><span class="summary-icon muted">✓</span><span><b id="summary-done">0</b><small>완료한 일</small></span></div><div class="progress-card"><div class="progress-top"><small id="progress-scope">오늘의 진행률</small><b id="progress-label">0%</b></div><div class="progress-track"><span id="progress-bar"></span></div></div></div>
             <div class="list-toolbar"><div class="filter-tabs" role="tablist"><button class="filter-tab selected" data-filter="all">전체</button><button class="filter-tab" data-filter="active">진행 중</button><button class="filter-tab" data-filter="done">완료</button></div><label class="search-box"><span>⌕</span><input id="search-input" type="search" placeholder="할 일 검색" aria-label="할 일 검색" /><kbd>⌘ K</kbd></label></div>
-            <button type="button" class="secondary-button" id="bulk-move">미완료 할일 일괄 이동</button><div id="day-filters" class="day-filters hidden" aria-label="하루 보기 검색 필터">
+            <div class="task-controls" id="task-controls"><div id="day-filters" class="day-filters hidden" aria-label="하루 보기 검색 필터">
               <details class="day-filter-dropdown" id="day-category-filter"><summary>카테고리 <span id="day-category-label">전체</span></summary><div class="day-filter-options" id="day-category-options"></div></details>
               <details class="day-filter-dropdown" id="day-kind-filter"><summary>항목 종류 <span id="day-kind-label">전체</span></summary><div class="day-filter-options" id="day-kind-options"></div></details>
               <button type="button" class="text-link" id="reset-day-filters">필터 초기화</button>
+            </div>
+              <button type="button" class="secondary-button" id="bulk-move">미완료 할 일 이동</button>
             </div>
             <div id="task-list" class="task-list"></div>
             <div id="routine-list" class="routine-list hidden"></div>
@@ -140,7 +142,7 @@
         <div class="dialog-actions"><button type="button" class="secondary-button" id="test-notification">테스트 알림</button><span class="action-spacer"></span><button class="primary-button">저장하기</button></div>
       </form>
     </dialog>
-    <dialog id="bulk-dialog" class="task-dialog"><form id="bulk-form"><h2>미완료 할일 일괄 이동</h2><p><span id="bulk-source"></span>의 일반 할일을 옮겨요. 루틴과 플랜에 연결된 할일은 제외해요.</p><label class="field-label" for="bulk-move-date">이동할 날짜</label><input class="text-field" id="bulk-move-date" type="date" required><div class="dialog-actions"><button type="button" class="secondary-button" onclick="this.closest('dialog').close()">취소</button><button class="primary-button">옮기기</button></div></form></dialog>
+    <dialog id="bulk-dialog" class="task-dialog"><form id="bulk-form"><div class="dialog-head"><div><div class="eyebrow">MOVE TASKS</div><h2>미완료 할 일 이동</h2></div><button type="button" class="icon-button" onclick="this.closest('dialog').close()" aria-label="닫기">×</button></div><p class="field-help"><span id="bulk-source"></span>의 일반 할일을 옮겨요. 루틴과 플랜에 연결된 할일은 제외해요.</p><label class="field-label" for="bulk-move-date">이동할 날짜</label><input class="text-field" id="bulk-move-date" type="date" required><div class="dialog-actions"><button type="button" class="secondary-button" onclick="this.closest('dialog').close()">취소</button><button class="primary-button">옮기기</button></div></form></dialog>
     <dialog id="settings-dialog" class="task-dialog">
       <div class="dialog-head"><div><div class="eyebrow">PREFERENCES</div><h2>설정</h2></div><button type="button" class="icon-button" id="close-settings" aria-label="닫기">×</button></div>
       <label class="notification-toggle"><span>할일 날짜 변경 시 해당 날짜로 이동</span><input id="follow-task-date" type="checkbox" role="switch"></label><label class="notification-toggle"><span>24시간제로 시간 입력</span><input id="time-24-hour" type="checkbox" role="switch" checked></label>
@@ -149,8 +151,8 @@
       <p class="field-help">왼쪽 바의 사용량 영역을 표시해요. 끄면 자동 조회도 멈춰요. 이 브라우저에 설정이 저장돼요.</p>
       <div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="primary-button" id="done-settings">완료</button></div>
     </dialog>
-    <dialog id="chatgpt-dialog" class="task-dialog chatgpt-dialog">
-      <div class="dialog-head"><div><div class="eyebrow">YOUR CHATGPT PLAN</div><h2>GPT 도우미</h2></div><button type="button" class="icon-button" id="close-chatgpt" aria-label="닫기">×</button></div>
+    <dialog id="chatgpt-dialog" class="task-dialog chatgpt-dialog" aria-labelledby="chatgpt-dialog-title">
+      <div class="dialog-head"><div><div class="eyebrow">YOUR CHATGPT PLAN</div><h2 id="chatgpt-dialog-title">GPT 도우미</h2></div><button type="button" class="icon-button" id="close-chatgpt" aria-label="닫기">×</button></div>
       <div class="chatgpt-connection"><div><strong id="chatgpt-account">ChatGPT 계정 연결</strong><p id="chatgpt-connection-status" role="status">연결 상태를 확인하고 있어요.</p></div><button type="button" class="secondary-button hidden" id="chatgpt-disconnect">연결 해제</button></div>
       <button type="button" class="chatgpt-signin" id="chatgpt-connect" disabled>Continue with ChatGPT</button>
       <p class="field-help">연결한 계정의 ChatGPT 구독으로 답변을 받아요. 앱 연결과 사용 한도는 <a href="https://chatgpt.com/settings/usage" class="chatgpt-usage-link" target="_blank" rel="noopener noreferrer">ChatGPT 설정 → 사용량</a>에서 관리할 수 있어요.</p>
