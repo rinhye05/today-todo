@@ -20,6 +20,8 @@
   let tasks = loadedRecords.filter((record) => record.type !== 'routine' && !plannerTypes.has(record.type));
   let routines = loadedRecords.filter((record) => record.type === 'routine').map(schedule.normalizeRoutine);
   const followDate = () => localStorage.getItem('todo-follow-date') === 'true';
+  const COMPLETED_LAST_KEY = 'todo-completed-last';
+  let completedLast = localStorage.getItem(COMPLETED_LAST_KEY) !== 'false';
   let selectedDate = iso(today);
   let shownMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   let view = 'overview';
@@ -261,7 +263,7 @@
     $('#account-dialog').close();
     setSyncLabel('이 기기에 저장');
   }
-  const sortTasks = (items) => [...items].sort((a, b) => a.done - b.done || a.date.localeCompare(b.date) || ({ high: 0, normal: 1, low: 2 }[a.priority] - { high: 0, normal: 1, low: 2 }[b.priority]) || a.createdAt - b.createdAt);
+  const sortTasks = (items) => [...items].sort((a, b) => a.date.localeCompare(b.date) || ({ high: 0, normal: 1, low: 2 }[a.priority] - { high: 0, normal: 1, low: 2 }[b.priority]) || a.createdAt - b.createdAt);
   const subtasksDone = (task) => task.subtasks.filter((s) => s.done).length;
 
   function matchesDayFilters(item, kind) {
@@ -311,7 +313,7 @@
     if (filter === 'done') items = items.filter((t) => t.done);
     const sorted = view === 'day' ? window.TodoPlannerCore.sortDailyItems(items, selectedDate) : view === 'upcoming' ? items : sortTasks(items);
     const positions = new Map(sorted.map((item, index) => [item.id, index]));
-    return view === 'upcoming' ? sorted : sorted.sort((a, b) => (a.order ?? positions.get(a.id)) - (b.order ?? positions.get(b.id)));
+    return view === 'upcoming' ? sorted : window.TodoPlannerCore.sortCompletedLast(sorted.sort((a, b) => (a.order ?? positions.get(a.id)) - (b.order ?? positions.get(b.id))), completedLast);
   }
 
   function generateRoutineTasks() {
@@ -514,14 +516,13 @@
     const query = $('#search-input').value.trim().toLocaleLowerCase('ko');
     const plans = view === 'day' ? window.TodoPlanner.dayPlans(selectedDate).filter((plan) => matchesDayFilters(plan, 'plan') && (filter !== 'done' || plan.done) && (filter !== 'active' || (!plan.done && !plan.blocked)) && (!query || `${plan.title} ${plan.note || ''}`.toLocaleLowerCase('ko').includes(query))) : [];
     plans.sort((a, b) => daySortTime(a, a.startTime) - daySortTime(b, b.startTime));
-    const planCards = plans.map((plan) => window.TodoPlanner.dayPlanCard(plan, selectedDate)).join('');
     if (!items.length && !plans.length) {
       const headline = $('#search-input').value.trim() || (view === 'day' && (dayCategories || dayKinds)) ? '검색 결과가 없어요' : filter === 'done' ? '아직 완료한 일이 없어요' : filter === 'active' ? '진행 중인 일이 없어요' : view === 'day' ? '이 날은 여유롭네요' : '아직 할 일이 없어요';
       const copy = $('#search-input').value.trim() || (view === 'day' && (dayCategories || dayKinds)) ? '다른 단어로 찾아보거나 새 할 일을 추가해보세요.' : '해야 할 일을 적어두면 여기에 모아둘게요.';
       list.innerHTML = `<div class="empty-state"><div class="empty-icon">✦</div><h3>${headline}</h3><p>${copy}</p><button class="text-link" data-action="new">＋ 할 일 추가하기</button></div>`;
       return;
     }
-    list.innerHTML = items.map((task) => {
+    const taskCards = items.map((task) => {
       const count = task.subtasks.length;
       const priority = task.priority !== 'normal' ? `<span class="priority ${task.priority}">${task.priority === 'high' ? '높음' : '낮음'}</span>` : '';
       const dateMeta = view !== 'day' ? `<span>◷ ${escapeHTML(fmtDate(task.date, { month: 'short', day: 'numeric' }))}</span>` : '';
@@ -540,7 +541,9 @@
         ? `<form class="subtask-entry" data-task="${task.id}"><input id="subtask-entry" maxlength="120" placeholder="하위 주제 입력…" aria-label="하위 주제 입력" autocomplete="off"><button type="submit" aria-label="하위 주제 저장">추가</button><button type="button" data-action="cancelsub" aria-label="입력 취소">취소</button></form>`
         : `<button type="button" class="subtask-add" data-action="addsub" data-id="${task.id}">＋ 하위 주제 추가</button>`;
       return `<article data-task-id="${task.id}" class="task-card ${task.done ? 'is-done' : ''}"><button type="button" draggable="true" class="task-drag" data-drag-task="${task.id}" aria-label="할일 순서 변경">⠿</button><input type="checkbox" class="task-check" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="${escapeHTML(task.title)} 완료"><div class="task-body"><div class="task-title-line"><button type="button" class="task-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button><div class="task-tools"><button type="button" data-action="taskmenu" data-id="${task.id}" title="할 일 작업" aria-label="할 일 작업">···</button></div></div><textarea class="inline-note" data-note-task="${task.id}" rows="1" maxlength="500" placeholder="메모 추가" aria-label="${escapeHTML(task.title)} 메모">${escapeHTML(task.note || '')}</textarea><div class="task-meta">${dateMeta}${routineMeta}${categoryMeta}${timeMeta}${priority}${deadlineMeta ? `<span class="deadline-badge ${!task.done && window.TodoDeadline.timestamp(task) < Date.now() ? 'overdue' : ''}">${escapeHTML(deadlineMeta)}</span>` : ''}${count ? `<span class="subtask-progress">▦ ${subtasksDone(task)}/${count}</span>` : ''}</div><div class="subtask-list">${subtasks}${subtaskInput}</div></div></article>`;
-    }).join('') + planCards;
+    });
+    const cards = [...taskCards.map((html, index) => ({ html, done: items[index].done })), ...plans.map((plan) => ({ html: window.TodoPlanner.dayPlanCard(plan, selectedDate), done: plan.done }))];
+    list.innerHTML = window.TodoPlannerCore.sortCompletedLast(cards, completedLast).map((card) => card.html).join('');
     window.TodoPlanner.resizeNotes(list);
   }
 
@@ -585,7 +588,7 @@
   }
 
   function renderAgenda() {
-    const items = sortTasks(tasks.filter((t) => t.date === selectedDate && (!selectedRoutineId || selectedRoutineId === '__plans' || selectedRoutineId.startsWith('plan:') || t.routineId === selectedRoutineId)));
+    const items = window.TodoPlannerCore.sortCompletedLast(sortTasks(tasks.filter((t) => t.date === selectedDate && (!selectedRoutineId || selectedRoutineId === '__plans' || selectedRoutineId.startsWith('plan:') || t.routineId === selectedRoutineId))), completedLast);
     $('#agenda-title').textContent = selectedDate === iso(today) ? '오늘의 일정' : fmtDate(selectedDate, { month: 'long', day: 'numeric' });
     $('#agenda-count').textContent = items.length ? `${items.filter((t) => !t.done).length}개 남음` : '할 일이 없어요';
     $('#agenda-list').innerHTML = items.slice(0, 5).map((task) => `<div class="agenda-item ${task.done ? 'done' : ''}"><button class="agenda-check ${task.done ? 'done' : ''}" data-action="toggle" data-id="${task.id}" aria-label="${escapeHTML(task.title)} 완료">${task.done ? '✓' : ''}</button><button type="button" class="agenda-title" data-action="taskmenu" data-id="${task.id}" title="할 일 작업">${escapeHTML(task.title)}</button></div>`).join('');
@@ -926,8 +929,20 @@
   });
   $('#follow-task-date').checked = followDate();
   $('#follow-task-date').addEventListener('change', (event) => localStorage.setItem('todo-follow-date', String(event.target.checked)));
+  $('#completed-tasks-last').checked = completedLast;
+  $('#completed-tasks-last').addEventListener('change', (event) => {
+    completedLast = event.target.checked;
+    localStorage.setItem(COMPLETED_LAST_KEY, String(completedLast));
+    render();
+  });
+  window.addEventListener('storage', (event) => {
+    if (event.key !== COMPLETED_LAST_KEY && event.key !== null) return;
+    completedLast = localStorage.getItem(COMPLETED_LAST_KEY) !== 'false';
+    $('#completed-tasks-last').checked = completedLast;
+    render();
+  });
   window.TodoPlanner.init({
-    getState: () => ({ tasks, routines, records: plannerRecords, today: iso(today), selectedDate, shownMonth: iso(shownMonth), view }),
+    getState: () => ({ tasks, routines, records: plannerRecords, today: iso(today), selectedDate, shownMonth: iso(shownMonth), view, completedLast }),
     mutate: (fn) => { fn({ tasks, routines, records: plannerRecords }); persist(); },
     selectDate: (date, nextView = view) => { selectedDate = date; const d = parseDate(date); shownMonth = new Date(d.getFullYear(), d.getMonth(), 1); view = nextView; render(); },
     openTask: (date, task = null) => { selectedDate = date; openDialog(task); },

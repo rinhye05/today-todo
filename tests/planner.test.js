@@ -4,6 +4,26 @@ const core = require('../planner-core');
 const plan = (values = {}) => ({ type: 'plan', id: 'exercise', title: '운동', categoryId: 'fitness', startDate: '2026-10-01', weekdays: [1], startTime: '20:00', endTime: '21:00', ...values });
 const event = (values = {}) => ({ type: 'event', id: 'dinner', title: '약속', startDate: '2026-10-12', endDate: '2026-10-12', startTime: '20:30', endTime: '21:30', repeat: 'none', allowPlan: false, ...values });
 
+test('completed items follow unfinished items without rewriting manual order', () => {
+  const items = [{ id: 'done-first', done: true, order: 0 }, { id: 'active-first', done: false, order: 1 }, { id: 'done-second', done: true, order: 2 }, { id: 'active-second', order: 3 }];
+  const original = structuredClone(items);
+  assert.deepEqual(core.sortCompletedLast(items).map((item) => item.id), ['active-first', 'active-second', 'done-first', 'done-second']);
+  assert.deepEqual(core.sortCompletedLast(items, false), original);
+  assert.deepEqual(items, original);
+  items[0].done = false;
+  assert.deepEqual(core.sortCompletedLast(items).map((item) => item.id), ['done-first', 'active-first', 'active-second', 'done-second']);
+});
+
+test('completion grouping overrides kind and time order only while enabled', () => {
+  const date = '2026-10-12';
+  const items = core.sortDailyItems([{ id: 'done', date, done: true, deadline: '2026-10-12T08:00:00+09:00' }, { id: 'active', date }, { id: 'routine', date, routineId: 'r' }, { id: 'plan', type: 'plan', startTime: '09:00' }], date);
+  assert.deepEqual(core.sortCompletedLast(items).map((item) => item.id), ['active', 'routine', 'plan', 'done']);
+  assert.deepEqual(core.sortCompletedLast(items, false).map((item) => item.id), ['done', 'active', 'routine', 'plan']);
+  for (const group of [[], [{ done: true }, { done: true }], [{ done: false }, {}]]) {
+    assert.deepEqual(core.sortCompletedLast(group), group);
+  }
+});
+
 test('weeks start Sunday and cross month/year boundaries', () => {
   assert.deepEqual(core.weekDates('2027-01-01'), ['2026-12-27','2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02']);
   assert.equal(core.weekLabel('2026-10-14'), '2026년 10월 3주차');

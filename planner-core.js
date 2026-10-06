@@ -102,6 +102,12 @@
     });
   }
 
+  function sortCompletedLast(items, enabled = true) {
+    return enabled
+      ? [...items.filter((item) => !item.done), ...items.filter((item) => item.done)]
+      : [...items];
+  }
+
   function sortDailyItems(items, date) {
     const kind = (item) => item.type === 'plan' ? 2 : item.routineId ? 1 : 0;
     const when = (item) => {
@@ -187,5 +193,5 @@
     return `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${week}주차`;
   }
 
-  return { days, addDays, weekStart, weekDates, weekLabel, minutes, time, safeColor, overlaps, planAt, planInstances, routinePoints, sortDailyItems, startsBetween, eventInstances, eventsOnDate, dayModel, weekModel, layout };
+  return { days, addDays, weekStart, weekDates, weekLabel, minutes, time, safeColor, overlaps, planAt, planInstances, routinePoints, sortCompletedLast, sortDailyItems, startsBetween, eventInstances, eventsOnDate, dayModel, weekModel, layout };
 });
