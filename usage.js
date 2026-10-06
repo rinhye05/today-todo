@@ -66,10 +66,9 @@
 
   $('#settings-action').addEventListener('click', () => $('#settings-dialog').showModal());
   $('#mobile-settings-action').addEventListener('click', () => $('#settings-dialog').showModal());
-  $('#settings-dialog').addEventListener('click', (event) => { if (event.target.closest('.settings-item')) $('#settings-dialog').close(); }, true);
   for (const id of ['close-settings', 'done-settings']) $(`#${id}`).addEventListener('click', () => $('#settings-dialog').close());
   $('#show-gpt-usage').addEventListener('change', (event) => setVisible(event.target.checked));
-  $('#hide-usage').addEventListener('click', () => { setVisible(false); (matchMedia('(max-width: 520px)').matches ? $('#mobile-settings-action') : $('#settings-action')).focus(); });
+  $('#hide-usage').addEventListener('click', () => { setVisible(false); (matchMedia('(max-width: 900px)').matches ? $('#mobile-settings-action') : $('#settings-action')).focus(); });
   $('#refresh-usage').addEventListener('click', () => refresh(true));
   document.addEventListener('visibilitychange', () => { if (!document.hidden && pollable) refresh(); });
   window.addEventListener('storage', (event) => { if (event.key === preferenceKey || event.key === null) setVisible(event.key === null || event.newValue !== 'false', false); });

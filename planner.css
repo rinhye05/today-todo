@@ -795,3 +795,92 @@ only narrow screens scroll horizontally. */
 .week-connected .week-extras {grid-template-columns:45px repeat(7,minmax(var(--day-min-width,118px),1fr));min-width:0}
 .week-connected .week-extras::before {content:'';background:#19202a}
 .week-connected .week-extra-day:first-child {border-left:1px solid var(--line)}
+
+/* Keep seven readable columns together; narrow layouts give the timetable
+   the full content width and move the calendar below it. */
+.overview-mode .content-grid { grid-template-columns:minmax(0,1fr) 300px; gap:28px; }
+.overview-mode .page-heading { margin-bottom:24px; }
+.planner-toolbar { margin:24px 0 18px; gap:16px; align-items:flex-start; }
+.planner-toolbar h2, .week-extra-heading h2 { font-size:18px; line-height:1.5; margin:0 0 6px; }
+.planner-toolbar p, .week-extra-heading p, .planner-empty { font-size:13px; line-height:1.7; }
+.planner-tools { gap:8px; }
+.planner-tools input { width:154px; min-height:40px; padding:8px 10px; font-size:13px; }
+.planner-tools .icon-button { width:36px; height:40px; border:1px solid var(--line2); }
+.week-summary { padding:16px; gap:12px 24px; font-size:13px; line-height:1.7; }
+.week-summary-help { font-size:12px; flex-basis:100%; }
+.planner-category-legend { min-height:48px; font-size:12px; gap:10px; padding:8px 0; }
+.category-badge { font-size:11px; padding:3px 7px; max-width:100%; overflow-wrap:anywhere; }
+.deadline-badge, .calendar-week-label { font-size:12px; }
+.planner-scroll-help { display:none; font-size:12px; color:var(--muted); margin:0 0 10px; }
+.has-horizontal-scroll .planner-scroll-help { display:block; }
+.planner-scroll { scrollbar-width:auto; scrollbar-gutter:auto; border-radius:10px; }
+.week-grid { grid-template-columns:var(--week-columns,56px repeat(7,minmax(124px,1fr))); min-width:var(--week-min-width,924px); }
+.week-connected-content { min-width:var(--week-min-width,924px); }
+.week-time-heading { font-size:10px; }
+.week-times > span { font-size:11px; color:#a9b6c7; right:8px; }
+.week-day-heading { padding:10px 8px; min-height:48px; }
+.week-day-heading > button { font-size:14px; min-height:28px; padding:2px; }
+.week-day-heading span { font-size:12px; color:#bac4d0; }
+.week-block { padding:8px; border-radius:7px; }
+.week-block-heading { gap:7px; }
+.week-block-title { font-size:13px; line-height:1.6; }
+.week-block small { font-size:11px; margin:4px 0; line-height:1.6; }
+.plan-completion { width:16px; height:16px; margin-top:3px; }
+.weekly-task { gap:7px; margin-top:8px; }
+.weekly-task input { width:15px; height:15px; margin-top:4px; }
+.weekly-task button { font-size:12px; line-height:1.7; }
+.weekly-task .inline-note { font-size:12px; min-height:30px; padding:4px 6px; margin:4px 0 0; }
+.weekly-deadline { font-size:11px; }
+.routine-point, .routine-task-line { border-radius:0; padding:6px 3px; }
+.routine-point-row { flex-wrap:wrap; gap:6px; }
+.routine-point-row time { font-size:11px; margin-left:22px; flex-basis:100%; }
+.all-day-event { font-size:12px; line-height:1.6; padding:6px 8px !important; }
+.day-event, .day-event small { font-size:12px; line-height:1.7; }
+.week-extra-title { font-size:14px; }
+.week-extra-title > span { font-size:12px; }
+.week-extra-title .icon-button { width:28px; height:28px; }
+.week-extra-day { padding:14px 12px; }
+.week-connected .week-extra-heading { padding:12px 16px 12px 68px; }
+.week-connected .week-extra-heading h2 { font-size:14px; }
+.week-connected .week-extras { grid-template-columns:var(--week-columns,56px repeat(7,minmax(124px,1fr))); }
+.placed-count { font-size:11px; }
+.unplaced-task { padding:10px 0; margin:8px 0; border-bottom:1px solid var(--line); }
+.plan-management-list article, .event-card { padding:20px; flex-wrap:wrap; align-items:flex-start; }
+.plan-management-list strong, .event-card h3 { font-size:16px; }
+.plan-management-list p, .event-card p, .event-card small { font-size:13px; }
+.plan-record-actions { justify-content:flex-start; align-items:center; }
+.plan-record-actions .notification-toggle { gap:14px; padding:8px 0; border:0; font-size:13px; }
+.category-field button { height:auto; min-height:44px; }
+.category-row { flex-wrap:wrap; gap:10px; }
+.category-row > button { min-width:28px; min-height:32px; }
+.event-conflicts, .deadline-help, .day-time-row { font-size:13px; }
+.event-move-row { grid-template-columns:minmax(0,1fr) 100px 100px; gap:10px; }
+.event-move-row label { min-width:0; overflow-wrap:anywhere; }
+
+@media (min-width:1440px) and (max-width:1599px) {
+  .app-shell:has(.overview-mode) .sidebar { width:196px; padding-left:12px; padding-right:12px; }
+  .main-area.overview-mode { padding:0 20px; }
+  .overview-mode .content-grid { grid-template-columns:minmax(0,1fr) 256px; gap:20px; }
+  .overview-mode .calendar-panel { padding:16px; }
+}
+@media (max-width:1439px) {
+  .overview-mode .content-grid { grid-template-columns:minmax(0,1fr); }
+  .overview-mode .calendar-panel { position:static; grid-row:2; width:100%; max-width:440px; }
+  .overview-mode .task-section { grid-row:1; }
+}
+@media (max-width:1199px) {
+  .planner-toolbar { flex-direction:column; }
+  .planner-tools { width:100%; }
+}
+@media (max-width:600px) {
+  .planner-toolbar { margin-top:20px; }
+  .planner-toolbar h2 { font-size:18px; }
+  .planner-tools .secondary-button { padding:9px 12px; }
+  .planner-tools input { flex:1; min-width:148px; }
+  .planner-scroll { border-radius:8px; }
+  .week-summary { gap:8px 16px; padding:14px; }
+  .planner-dialog-content { padding:22px 20px; }
+  .day-time-row { flex-wrap:wrap; }
+  .event-move-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .event-move-row > label { grid-column:1/-1; }
+}
