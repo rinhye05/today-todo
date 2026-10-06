@@ -162,7 +162,11 @@
       <p class="field-help">연결한 계정의 ChatGPT 구독으로 답변을 받아요. 앱 연결과 사용 한도는 <a href="https://chatgpt.com/settings/usage" class="chatgpt-usage-link" target="_blank" rel="noopener noreferrer">ChatGPT 설정 → 사용량</a>에서 관리할 수 있어요.</p>
       <div class="chatgpt-welcome hidden" id="chatgpt-welcome"><p>이 도우미의 질문은 연결한 ChatGPT 구독 또는 크레딧을 사용해요.</p><button type="button" class="secondary-button" id="chatgpt-welcome-done">확인했어요</button></div>
       <form id="chatgpt-form">
-        <label class="field-label" for="chatgpt-model">사용할 모델</label><div class="chatgpt-model-row"><select id="chatgpt-model" class="text-field" disabled><option value="">계정을 연결하면 선택할 수 있어요</option></select><button type="button" class="icon-button" id="refresh-chatgpt-models" aria-label="모델 목록 새로고침" disabled>↻</button></div>
+        <label class="field-label" for="chatgpt-model">사용할 모델</label>
+        <div class="chatgpt-model-row">
+          <select id="chatgpt-model" class="text-field" disabled><option value="">계정을 연결하면 선택할 수 있어요</option></select>
+          <button type="button" class="icon-button" id="refresh-chatgpt-models" aria-label="모델 목록 새로고침" title="모델 목록 새로고침" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2.3 5.7M20 12l-4-4"/></svg></button>
+        </div>
         <label class="field-label" for="chatgpt-prompt">어떤 도움이 필요한가요?</label><textarea id="chatgpt-prompt" class="text-field" rows="3" maxlength="4000" placeholder="예: 오늘 할 일을 어떤 순서로 진행하면 좋을까?" required></textarea>
         <div class="chatgpt-suggestions"><button type="button" data-gpt-prompt="오늘 할 일을 어떤 순서로 진행하면 좋을까?">진행 순서 고민하기</button><button type="button" data-gpt-prompt="꾸준히 이어갈 수 있는 운동 루틴을 추천해줘.">루틴 아이디어</button></div>
         <label class="chatgpt-context"><input id="chatgpt-include-tasks" type="checkbox" /><span>오늘 남은 할 일도 함께 보내기</span></label>
